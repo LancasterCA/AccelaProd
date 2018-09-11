@@ -1,4 +1,4 @@
-// testing parameters, uncomment to use in script test
+// testing parameters, uncomment to use in script test--
 /*
 aa.env.setValue("showDebug","Y");
 aa.env.setValue("fromDate","8/18/2018");
