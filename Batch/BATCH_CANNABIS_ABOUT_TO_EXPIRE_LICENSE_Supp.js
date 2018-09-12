@@ -443,6 +443,7 @@ function addRenewalFees(licType, licCapId, renewalCapId) {
 	
 	FOGFees = new Array();
 	FOGFees["Primary"] = "MCLR040";							//Assessed if "Manufacturing" = Checked
+	FOGFees["Tenant"] = "MTLR020";							//Assessed if "Manufacturing" = Checked
 	
 	// add instance of license fee, process fee and SB1186 fee
 	
@@ -459,16 +460,22 @@ function addRenewalFees(licType, licCapId, renewalCapId) {
 			addFee(FOGFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
 		}
 		if(cnpyASI != null) {
-//			addFeeOnRenewalFromASIOnLicense("Square Footage (SQFT) of Your Business",siteRegFees[licType], renewalCapId, licCapId);
 			addFeeOnRenewalFromASIOnLicense("Total Square Foot of Canopy",cultivationFees[licType], renewalCapId, licCapId);
 		}
 	}
-	
-	else {
-		if (matches(licType, "Tenant", "Employee")) {
+	if (matches(licType, "Tenant")) {
 			if (renewalFees[licType]) addFee(renewalFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
-		}
+			
+			tenMfgASI = getAppSpecific("Manufacturing",renewalCapId);
+			if(tenMfgASI != null) {
+				addFee(FOGFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
+			}
 	}
+	if (matches(licType, "Employee")) {
+			if (renewalFees[licType]) addFee(renewalFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
+	}
+
+	
 	if (SBFees[licType]) addFee(SBFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId); 
 }
 
