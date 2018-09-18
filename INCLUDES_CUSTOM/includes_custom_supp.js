@@ -2371,7 +2371,7 @@ function updateCannabisPrimaryTable(parentCapId) {
 
 			// add asit data 
 			var tenantAppSpecAddOK = false;
-			tenantAppSpecAddOK = cannabisAddAppSpecificTableInfors(tableName, tenantParentLocCapId, testAsitFieldArray);
+			tenantAppSpecAddOK = cannabisAddAppSpecificTableInfors(tableName, parentCapId, testAsitFieldArray);
 			return tenantAppSpecAddOK;
 		}
 	}
