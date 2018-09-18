@@ -30,6 +30,7 @@ aa.env.setValue("feePeriod","");
 |
 | Version 1.0 - Base Version. 11/01/08 JHS
 | Version 2.0 - Updated for Masters Scripts 2.0  02/13/14 JHS
+| Version 2.1 - Updated function addRenewalFees to include fees for Out of Area Contractor record type. 
 |
 /------------------------------------------------------------------------------------------------------*/
 /*------------------------------------------------------------------------------------------------------/
@@ -430,6 +431,7 @@ function addRenewalFees(licType, licCapId, renewalCapId) {
 	licenseFees["Vehicle For Hire Operator"] = "TXIB030";		// qty is ASI "Number of Vehicles
 	licenseFees["Tobacco Retailer"] = "TOBCOR010";
 	licenseFees["Tow Owner"] = "TOWBR020";
+	licenseFees["Out of Area Contractor"] = "GENR010"; 		// qty is ASI "# of People Working in Lancaster" 
 
 	processingFees = new Array();
 	processingFees["General"] = "GENR020";
@@ -441,6 +443,7 @@ function addRenewalFees(licType, licCapId, renewalCapId) {
 	processingFees["Pawn Shop - Second Hand Dealer"] = "PWN030"
 	processingFees["Tobacco Retailer"] = "TOBCO011";
 	processingFees["Salon Rental"] = "SRNTLR020"
+	processingFees["Out of Area Contractor"] = "GENR020";
 
 	SBFees = new Array();
 	SBFees["General"] = "GENR030";
@@ -463,6 +466,7 @@ function addRenewalFees(licType, licCapId, renewalCapId) {
 	SBFees["Vehicle For Hire Operator"] = "TXIBR010";
 	SBFees["Tobacco Retailer"] = "TOBCOR020";
 	SBFees["Tow Owner"] = "TOWBR010";
+	SBFees["Out of Area Contractor"] = "GENR030";
 
 	
 	nonProfit = false;
@@ -471,7 +475,7 @@ function addRenewalFees(licType, licCapId, renewalCapId) {
 
 	// add instance of license fee, process fee and SB1186 fee
 
-	if (matches(licType, "General", "Group Home")) {
+	if (matches(licType, "General", "Group Home", "Out of Area Contractor")) {
 		if (!nonProfit)  { 
 			addFeeOnRenewalFromASIOnLicense("# of People Working in Lancaster",licenseFees[licType], renewalCapId, licCapId);
 			if (processingFees[licType]) addFee(processingFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
@@ -493,6 +497,7 @@ function addRenewalFees(licType, licCapId, renewalCapId) {
 	if (SBFees[licType]) addFee(SBFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId); 
 
 }
+
 
 function addFeeOnRenewalFromASIOnLicense(ASIField, FeeCode, renewalCapId, licenseCapId) {
 	var tmpASIQty = parseFloat("0" + getAppSpecific(ASIField, licenseCapId))
