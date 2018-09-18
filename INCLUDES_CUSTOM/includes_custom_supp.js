@@ -1,3 +1,5 @@
+// 09/17/2018: Added the creationg of new ASIT on primary license back into update
+
 // 08/07/2018: UPDATED  getParentCapVIAPartialCap
 
 // 07/16/2018: ADDED checkPrimaryAppTenantInfo for ASB/Licenses/Cannabis/Primary/Application new requirement to restrict tenant info table input
@@ -5,8 +7,6 @@
 // 07/12/2018: revised to change references of 'local' license to 'primary'
 
 // 07/05/2018: REPLACING ENTIRE CONTENTS WITH THE INCLUDES FILE FROM PRODUCTION ENVIRONMENT - CHAD has copies of current work!
-
-// do not alter this file.
 
 /*------------------------------------------------------------------------------------------------------/
 | Program : INCLUDES_CUSTOM.js
@@ -2349,7 +2349,31 @@ function updateCannabisPrimaryTable(parentCapId) {
 				
 			else 
 				{logDebug("no updates identified");}
-		}		
+		}
+		else // this is a new row in the table - table is empty
+		{
+			// table name
+			var tableName = "TENANT INFORMATION";
+			// rows data, element is Map<columnName, columnValue>.
+			var testAsitFieldArray = [];
+			//Create a map to save the field and value map.
+			// row 1
+			var asitFieldsRow1 = aa.util.newHashMap(); // Map<columnName, columnValue>
+
+			asitFieldsRow1.put("Business Name",myBusinessName);
+			asitFieldsRow1.put("Suite Number",mySuiteNumber);
+			asitFieldsRow1.put("Cultivation", myCultivation);
+			asitFieldsRow1.put("Manufacturing", myManufacturing);
+			asitFieldsRow1.put("Total Unit SqFt", myTotalSiteSqFt);
+			asitFieldsRow1.put("Canopy SqFt", myCanopySqFt);
+			asitFieldsRow1.put("Manufacturing SF", myManufacturingSF);
+			testAsitFieldArray.push(asitFieldsRow1);
+
+			// add asit data 
+			var tenantAppSpecAddOK = false;
+			tenantAppSpecAddOK = cannabisAddAppSpecificTableInfors(tableName, tenantParentLocCapId, testAsitFieldArray);
+			return tenantAppSpecAddOK;
+		}
 	}
 	else
 	{
