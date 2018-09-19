@@ -390,7 +390,8 @@ function mainProcess() {
 			var thisProj = projList.getOutput()[0];
 			printObjProperties(thisProj);
 
-			thisProj.setRelationShip("Renewal");
+			// commenting out to test diff relationship type to fix copy contacts thisProj.setRelationShip("Renewal");
+			thisProj.setRelationShip("R");
 			thisProj.setStatus("Incomplete");
 
 			var rezult = aa.cap.updateProject(thisProj);
