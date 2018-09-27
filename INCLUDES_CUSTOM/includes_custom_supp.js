@@ -1,4 +1,13 @@
-// 09/17/2018: Added the creationg of new ASIT on primary license back into update
+// 09/27/2018: The following 4 functions where copied out of workflowtaskupdateafter4renew
+// the wtua4renew script does not appear to be copying contacts correctly as of 09.27.2018 so we are creating our own patch
+//
+//		function copyContactsWithAddress_SLS
+//		function removeContactsFromCap_SLS
+//		function getParentCapIDForReview_SLS
+//		RenewalCopyContacts_SLS
+//
+
+// 09/17/2018: Added the creation of new ASIT on primary license back into update
 
 // 08/07/2018: UPDATED  getParentCapVIAPartialCap
 
@@ -3049,3 +3058,154 @@ function cannabisSetUpRenewalStatusForRenewed(capid) {
 			  logDebug("ERROR: Failed to get renewal CAP by parent CAP(" + capId + ") for review: " + reviewResult.getErrorMessage());
 			}
 }
+
+
+// the following 4 functions where copied out of workflowtaskupdateafter4renew
+// the wtua4renew script does not appear to be copying contacts correctly as of 09.27.2018 so we are creating our own patch
+//
+//function copyContactsWithAddress_SLS
+//function removeContactsFromCap_SLS
+//function getParentCapIDForReview_SLS
+//RenewalCopyContacts_SLS
+
+function copyContactsWithAddress_SLS(pFromCapId, pToCapId)
+{
+   // Copies all contacts from pFromCapId to pToCapId and includes Contact Address objects
+   //
+   if (pToCapId == null)
+   var vToCapId = capId;
+   else
+   var vToCapId = pToCapId;
+
+   removeContactsFromCap_SLS(pToCapId);
+
+   aa.print("Copying contacts with addresses");
+   var capContactResult = aa.people.getCapContactByCapID(pFromCapId);
+   var copied = 0;
+   if (capContactResult.getSuccess())
+   {
+      var Contacts = capContactResult.getOutput();
+
+      for (yy in Contacts)
+      {
+         var newContact = Contacts[yy].getCapContactModel();
+
+
+//aa.print("looping through contacts and the contact model for this one looks like:");
+//aa.print(">>>> contact name:"+newContact.contactName);
+//aa.print(">>>> getContactTypeFlag:"+newContact.getContactTypeFlag());
+aa.print(">>>> contactSeqNumber:"+newContact.contactSeqNumber);
+//aa.print(">>>> phone1:"+newContact.phone1);
+//aa.print(">>>> phone2:"+newContact.phone2);
+//aa.print(">>>> phone3:"+newContact.phone3);
+
+         var newPeople = newContact.getPeople();
+         var addressList = aa.address.getContactAddressListByCapContact(newContact).getOutput();
+         newContact.setCapID(vToCapId);
+         aa.people.createCapContact(newContact);
+         newerPeople = newContact.getPeople();
+         // contact address copying
+         if (addressList)
+         {
+            for (add in addressList)
+            {
+
+               var transactionAddress = false;
+               contactAddressModel = addressList[add].getContactAddressModel();
+//aa.print("**************** and the address Model is ***************");
+//printObjPropertiesScriptTest(contactAddressModel);
+               if (contactAddressModel.getEntityType() == "CAP_CONTACT")
+               {
+                  transactionAddress = true;
+                  contactAddressModel.setEntityID(parseInt(newerPeople.getContactSeqNumber()));
+               }
+               // Commit if transaction contact address
+               if(transactionAddress)
+               {
+aa.print("*******************it is a transaction address not ref*******************");				   
+                  var newPK = new com.accela.orm.model.address.ContactAddressPKModel();
+                  contactAddressModel.setContactAddressPK(newPK);
+               }
+               // Commit if reference contact address
+               else
+               {
+aa.print("*******************it is a REF address not txn *******************");				   
+                  // build model
+                  var Xref = aa.address.createXRefContactAddressModel().getOutput();
+                  Xref.setContactAddressModel(contactAddressModel);
+                  Xref.setAddressID(addressList[add].getAddressID());
+                  Xref.setEntityID(parseInt(newerPeople.getContactSeqNumber()));
+                  Xref.setEntityType(contactAddressModel.getEntityType());
+                  Xref.setCapID(vToCapId);
+                  // commit address
+                  aa.address.createXRefContactAddress(Xref.getXRefContactAddressModel());
+               }
+
+            }
+         }
+         // end if
+         copied ++ ;
+         aa.print("Copied contact from " + pFromCapId.getCustomID() + " to " + vToCapId.getCustomID());
+      }
+   }
+   else
+   {
+      aa.print("**ERROR: Failed to get contacts: " + capContactResult.getErrorMessage());
+      return false;
+   }
+   return copied;
+
+}
+
+function removeContactsFromCap_SLS(recordCapId)
+{
+   var cons = aa.people.getCapContactByCapID(recordCapId).getOutput();
+   for (x in cons)
+   {
+      conSeqNum = cons[x].getPeople().getContactSeqNumber();
+      aa.people.removeCapContact(recordCapId, conSeqNum);
+   }
+}
+
+function getParentCapIDForReview_SLS(capid)
+{
+	if (capid == null || aa.util.instanceOfString(capid))
+	{
+		return null;
+	}
+	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "Incomplete");
+    if(result.getSuccess())
+	{
+		projectScriptModels = result.getOutput();
+//		printObjPropertiesScriptTest(projectScriptModels);
+		if (projectScriptModels == null || projectScriptModels.length == 0)
+		{
+			logDebug("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
+			return null;
+		}
+		//2. return parent CAPID.
+		projectScriptModel = projectScriptModels[0];
+//		aa.print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> printing the projectScriptModel <<<<<<<<<<<<<<<<<<<<<<<<");
+//		printObjPropertiesScriptTest(projectScriptModel);
+		return projectScriptModel.getProjectID();
+	}  
+    else 
+    {
+      logDebug("ERROR: Failed to get parent CAP by child CAP(" + capid + ") for review: " + result.getErrorMessage());
+      return null;
+    }
+}
+
+function RenewalCopyContacts_SLS() {
+	aa.print("************* START OF RENEWAL COPY CONTACTS SLS ***********************");
+
+	var parentLicenseCAPID = getParentCapIDForReview_SLS(capId)
+	var parentCapId = aa.cap.getCapID(parentLicenseCAPID.getID1(),parentLicenseCAPID.getID2(),parentLicenseCAPID.getID3()).getOutput();
+	if (parentLicenseCAPID != null)
+	{
+		copyContactsWithAddress_SLS(capId, parentCapId);
+	}
+	aa.print("************* END OF RENEWAL COPY CONTACTS SLS ***********************");
+}
+
+
