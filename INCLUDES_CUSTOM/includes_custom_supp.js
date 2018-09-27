@@ -3048,7 +3048,7 @@ function cannabisSetUpRenewalStatusForRenewed(capid) {
 			if(reviewResult.getSuccess()) {
 				var projectScriptModels = reviewResult.getOutput();
 				var projectScriptModel = projectScriptModels[0];
-				projectScriptModel.setStatus("Complete");
+				projectScriptModel.setStatus("Review");
 				aa.cap.updateProject(projectScriptModel);
 				logDebug("just updated ("+capid+") renewal status to Complete... here is object:");
 				printObjProperties(projectScriptModel);
@@ -3173,7 +3173,7 @@ function getParentCapIDForReview_SLS(capid)
 	{
 		return null;
 	}
-	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "Incomplete");
+	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "Review");
     if(result.getSuccess())
 	{
 		projectScriptModels = result.getOutput();
