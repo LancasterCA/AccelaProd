@@ -3113,7 +3113,7 @@ aa.print(">>>> contactSeqNumber:"+newContact.contactSeqNumber);
                var transactionAddress = false;
                contactAddressModel = addressList[add].getContactAddressModel();
 //aa.print("**************** and the address Model is ***************");
-//printObjPropertiesScriptTest(contactAddressModel);
+//printObjProperties(contactAddressModel);
                if (contactAddressModel.getEntityType() == "CAP_CONTACT")
                {
                   transactionAddress = true;
@@ -3177,7 +3177,7 @@ function getParentCapIDForReview_SLS(capid)
     if(result.getSuccess())
 	{
 		projectScriptModels = result.getOutput();
-//		printObjPropertiesScriptTest(projectScriptModels);
+//		printObjProperties(projectScriptModels);
 		if (projectScriptModels == null || projectScriptModels.length == 0)
 		{
 			logDebug("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
@@ -3186,7 +3186,7 @@ function getParentCapIDForReview_SLS(capid)
 		//2. return parent CAPID.
 		projectScriptModel = projectScriptModels[0];
 //		aa.print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> printing the projectScriptModel <<<<<<<<<<<<<<<<<<<<<<<<");
-//		printObjPropertiesScriptTest(projectScriptModel);
+//		printObjProperties(projectScriptModel);
 		return projectScriptModel.getProjectID();
 	}  
     else 
@@ -3200,12 +3200,49 @@ function RenewalCopyContacts_SLS() {
 	aa.print("************* START OF RENEWAL COPY CONTACTS SLS ***********************");
 
 	var parentLicenseCAPID = getParentCapIDForReview_SLS(capId)
-	var parentCapId = aa.cap.getCapID(parentLicenseCAPID.getID1(),parentLicenseCAPID.getID2(),parentLicenseCAPID.getID3()).getOutput();
 	if (parentLicenseCAPID != null)
 	{
+		var parentCapId = aa.cap.getCapID(parentLicenseCAPID.getID1(),parentLicenseCAPID.getID2(),parentLicenseCAPID.getID3()).getOutput();
 		copyContactsWithAddress_SLS(capId, parentCapId);
+	}
+	else {
+		cancel = true;
+		aa.print("******************** SOMETHING IS WRONG WITH THE PARENT CHILD RELATIONSHIP ****************")
+		var chkParent = getParentCapIDForRenewNoStatus_SLS(capId);
+		printObjProperties(chkParent);
+		
+		
 	}
 	aa.print("************* END OF RENEWAL COPY CONTACTS SLS ***********************");
 }
 
+function getParentCapIDForRenewNoStatus_SLS(capid)
+{
+	if (capid == null || aa.util.instanceOfString(capid))
+	{
+		aa.print("you passed in a null!");
+		return null;
+	}
+	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "");
+    if(result.getSuccess())
+	{
+		projectScriptModels = result.getOutput();
+		printObjProperties(projectScriptModels);
+		if (projectScriptModels == null || projectScriptModels.length == 0)
+		{
+			logDebug("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
+			return null;
+		}
+		//2. return parent CAPID.
+		projectScriptModel = projectScriptModels[0];
+		aa.print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> printing the projectScriptModel <<<<<<<<<<<<<<<<<<<<<<<<");
+		printObjProperties(projectScriptModel);
+		return projectScriptModel.getProjectID();
+	}  
+    else 
+    {
+      logDebug("ERROR: Failed to get parent CAP by child CAP(" + capid + ") for review: " + result.getErrorMessage());
+      return null;
+    }
+}
 
