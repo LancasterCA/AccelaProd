@@ -1931,7 +1931,7 @@ function getPartialCapID(capid)
 // ---------------------------------------------------------------------------------------------------
 function logDebug(dstr) {
 	aa.print("WRKFLWAFT4RENEW" + aa.getServiceProviderCode() + " : " + aa.env.getValue("CurrentUserID")+" : "+dstr);
-emailText = emailText + "\r" + "WRKFLWAFT4RENEW" + aa.getServiceProviderCode() + " : " + aa.env.getValue("CurrentUserID")+" : "+dstr;
+emailText = emailText + "<BR>" + "WRKFLWAFT4RENEW" + aa.getServiceProviderCode() + " : " + aa.env.getValue("CurrentUserID")+" : "+dstr;
 }
 
 aa.sendMail("noreply@accela.com", "chad@esilverliningsolutions.com", "", "workflowtaskupdateafterSLS script debug", emailText);
