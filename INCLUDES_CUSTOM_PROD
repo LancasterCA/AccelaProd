@@ -1,3 +1,14 @@
+// 09/27/2018: The following 4 functions where copied out of workflowtaskupdateafter4renew
+// the wtua4renew script does not appear to be copying contacts correctly as of 09.27.2018 so we are creating our own patch
+//
+//		function copyContactsWithAddress_SLS
+//		function removeContactsFromCap_SLS
+//		function getParentCapIDForReview_SLS
+//		RenewalCopyContacts_SLS
+//
+
+// 09/17/2018: Added the creation of new ASIT on primary license back into update
+
 // 08/07/2018: UPDATED  getParentCapVIAPartialCap
 
 // 07/16/2018: ADDED checkPrimaryAppTenantInfo for ASB/Licenses/Cannabis/Primary/Application new requirement to restrict tenant info table input
@@ -5,8 +16,6 @@
 // 07/12/2018: revised to change references of 'local' license to 'primary'
 
 // 07/05/2018: REPLACING ENTIRE CONTENTS WITH THE INCLUDES FILE FROM PRODUCTION ENVIRONMENT - CHAD has copies of current work!
-
-// do not alter this file.
 
 /*------------------------------------------------------------------------------------------------------/
 | Program : INCLUDES_CUSTOM.js
@@ -1428,13 +1437,23 @@ function daysBetween(date1, date2){
 }
 
 function getParentLicenseCapID(capid) {
-	if (capid == null || aa.util.instanceOfString(capid)) { return null; }
+	
+	logDebug("START getParentLicenseCapID! cap id is:"+capid);
+	
+	if (capid == null || aa.util.instanceOfString(capid)) { logDebug("getParentLicenseCapID: return null b/c not a string"); return null; }
+
 	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "Incomplete");
+logDebug("getParentLicenseCapID: return from aa.cap.getProjectByChildCapID is:"+result);
+printObjProperties(result);
 	if(result.getSuccess() ) {
 		projectScriptModels = result.getOutput();
 		projectScriptModel = projectScriptModels[0];
+logDebug("getParentLicenseCapID: you have a parent and got it from script model...printing the obj");
+printObjProperties(projectScriptModel);
+logDebug("getParentLicenseCapID: going to return the id--->"+projectScriptModel.getProjectID());
 		return projectScriptModel.getProjectID();
-	} else {
+	} else {		
+logDebug("getParentLicenseCapID: going to call getParentCapVIAPartialCap with capid");
 		return getParentCapVIAPartialCap(capid);
 	}
 }
@@ -1449,16 +1468,19 @@ function updateLicense(){
 			var thisLic = new licenseObject(licId.getCustomID(),licId); 
 			
 			// update expiration date
-			var prevExp = thisLic.b1ExpDate;
-			var licExpStatus = thisLic.getStatus();
-			today = new Date();
+			var prevExp = thisLic.b1ExpDate; 												
+			var licExpStatus = thisLic.getStatus();											
+			today = new Date();																
 			logDebug(thisLic.b1Exp.getExpDate().getYear());
-			logDebug(today.getFullYear());	
-			if ((thisLic.b1Exp.getExpDate().getYear() - today.getFullYear()) == 0)
-				thisLic.setExpiration(dateAddMonths(prevExp,12)) ;
+			logDebug(today.getFullYear());
+			// determine how many years from the current expiration have elapsed and then add this to the new date 
+			// ensure keep the original mon & day for the expiration
+			var newYear = (today.getFullYear() - thisLic.b1Exp.getExpDate().getYear()) + 1;	
+			logDebug("newYear = " + newYear);
+			thisLic.setExpiration(dateAddMonths(prevExp, (12 * newYear)));
 			if (licExpStatus != "Active") {
 				// update expiration status to 'Active'
-				thisLic.setStatus("Active");
+				thisLic.setStatus("Active");											
 			}	
 			
 			// update license record status to 'Issued'
@@ -1952,7 +1974,7 @@ logDebug("START getParentCapVIAPartialCap! with capid :"+capid );
 		printObjProperties(licenseProject);
 		
 		// update renewal relationship from partial cap to real cap
-		// 08-07-2018 this is not needed for the includes_custom script
+		// 08-07-2018 this is no need for the includes_custom script
 //		updateRelationship2RealCAP(licenseProject.getProjectID(), capid);
 
 		logDebug("after the update of the relationship... I should retrun the project ID of:"+licenseProject.getProjectID());
@@ -1967,23 +1989,32 @@ logDebug("START getParentCapVIAPartialCap! with capid :"+capid );
 }
 
 
+
 function getParentCapIDForComplete(capid) {
+
+logDebug("START OF GET PARENT CAP ID FOR COMPLETE IN INCLUDES CUSTOM");
 	if (capid == null || aa.util.instanceOfString(capid))
 	{
 		return null;
 	}
 	//1. Get parent license for review
+
 	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "Complete");
+	if (!result.getSuccess()) {
+		var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "");
+	}
+
     if(result.getSuccess())
-	{
+    {
 		var projectScriptModels = result.getOutput();
 		if (projectScriptModels == null || projectScriptModels.length == 0)
 		{
-			aa.print("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
+			logDebug("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
 			return null;
 		}
 		//2. return parent CAPID.
 		var projectScriptModel = projectScriptModels[0];
+logDebug("returning a project model project id from GET PARENT CAP ID FOR COMPLETE IN INCLUDES CUSTOM:"+projectScriptModel.getProjectID());
 		return projectScriptModel.getProjectID();
 	}  
     else 
@@ -2145,7 +2176,7 @@ function getParentCapIDForInComplete(capid) {
 		var projectScriptModels = result.getOutput();
 		if (projectScriptModels == null || projectScriptModels.length == 0)
 		{
-			aa.print("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
+			logDebug("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
 			return null;
 		}
 		//2. return parent CAPID.
@@ -2159,6 +2190,30 @@ function getParentCapIDForInComplete(capid) {
     }
 }
 
+
+function updateLicenseWithRenewalASI() {
+	showDebug = true;
+	showMessage = true;
+	logDebug("<font color=red><b>START</b> of updateLicenseWithRenewalASI "+capId+" </font>");
+	
+	var newCanCkbox = getAppSpecific("Cultivation");
+	var newCanopyVal = getAppSpecific("Square Foot of Canopy");
+	
+	var newManuCkbox = getAppSpecific("Manufacturing");
+	var newManuVal = getAppSpecific("Square Foot of Manufacturing");
+	
+	var newSqTotal = getAppSpecific("Square Footage (SQFT) of Your Business");
+	
+	editAppSpecific("Cultivation",newCanCkbox,pCapId);
+	editAppSpecific("Square Foot of Canopy",newCanopyVal,pCapId);
+	
+	editAppSpecific("Manufacturing",newManuCkbox,pCapId);
+	editAppSpecific("Square Foot of Manufacturing",newManuVal,pCapId);
+	
+	editAppSpecific("Square Footage (SQFT) of Your Business",newSqTotal,pCapId);
+	
+	logDebug("<font color=red><b>END</b> of updateLicenseWithRenewalASI "+capId+" </font>");
+}
 
 function cannabisAddAppSpecificTableInfors(tableName, capIDModel, asitFieldArray)
 /* * asitFieldArray is Array[Map<columnName, columnValue>] * */
@@ -2184,24 +2239,58 @@ function cannabisAddAppSpecificTableInfors(tableName, capIDModel, asitFieldArray
 	return inforsAdded;
 }
 
+/**
+* Set update column value. format: Map<rowID, Map<columnName, columnValue>>
+**/
+function cannabisSetUpdateColumnValue(updateRowsMap, rowID, columnName, columnValue)
+{
+	var updateFieldsMap = updateRowsMap.get(rowID);
+	if (updateFieldsMap == null)
+	{
+		updateFieldsMap = aa.util.newHashMap();
+		updateRowsMap.put(rowID, updateFieldsMap);
+	}
+	updateFieldsMap.put(columnName, columnValue);
+}
 
-function copyCannabisTenantInfoToCannabisPrimaryLicenseASIT() {
-//showDebug = true;
-//showMessage = true;
-	aa.print("<font color=red><b>START</b> of copyCannabisTenantInfoToCannabisPrimaryLicenseASIT "+capId+" </font>");
-	aa.print("the cap id is:"+capId);
-	
-	var myBusinessName = AInfo["Doing Business As (DBA) Name"];
-	
-/*	var primAddrModel = aa.address.getPrimaryAddressByCapID(capId,'Y');
-	if (primAddrModel.getSuccess()) {
-		var curAddr = primAddrModel.getOutput();
-		var mySuiteNumber = "" + curAddr.unitStart;
+/**
+* update ASIT rows data. updateRowsMap format: Map<rowID, Map<columnName, columnValue>>
+**/
+function cannabisUpdateAppSpecificTableInfors(tableName, capIDModel, updateRowsMap/** Map<rowID, Map<columnName, columnValue>> **/)
+{
+	if (updateRowsMap == null || updateRowsMap.isEmpty())
+	{
+		return;
 	}
-	else {
-		var mySuiteNumber = "";
+	
+	var asitTableScriptModel = aa.appSpecificTableScript.createTableScriptModel();
+	var asitTableModel = asitTableScriptModel.getTabelModel();
+	var rowList = asitTableModel.getRows();
+	asitTableModel.setSubGroup(tableName);
+	var rowIdArray = updateRowsMap.keySet().toArray();
+	for (var i = 0; i < rowIdArray.length; i++)
+	{
+		var rowScriptModel = aa.appSpecificTableScript.createRowScriptModel();
+		var rowModel = rowScriptModel.getRow();
+		rowModel.setFields(updateRowsMap.get(rowIdArray[i]));
+		rowModel.setId(rowIdArray[i]);
+		rowList.add(rowModel);
 	}
-*/
+	var inforsUpdated = false;
+	inforsUpdated = aa.appSpecificTableScript.updateAppSpecificTableInfors(capIDModel, asitTableModel);
+	return inforsUpdated;
+}
+
+
+function updateCannabisPrimaryTable(parentCapId) {
+	showDebug = true;
+	showMessage = true;
+	var success = true;
+	logDebug("<font color=red><b>START</b> of updateCannabisPrimaryTable "+capId+" </font>");
+
+	// table name
+	var tableName = "TENANT INFORMATION";
+	// rows data, element is Map<columnName, columnValue>.
 	
 	var myCultivation = AInfo["Cultivation"];
 	var myManufacturing = AInfo["Manufacturing"];
@@ -2209,50 +2298,120 @@ function copyCannabisTenantInfoToCannabisPrimaryLicenseASIT() {
 	var myCanopySqFt = AInfo["Square Foot of Canopy"];
 	var myManufacturingSF = AInfo["Square Foot of Manufacturing"];
 	var mySuiteNumber = AInfo["Tenant Suite Number"];
+	var myBusinessName = AInfo["Doing Business As (DBA) Name"];
 
-	aa.print("**** my values are ****");
-	aa.print("myBusinessName:		"+myBusinessName); // = AInfo["DBA Name"];
-	aa.print("mySuiteNumber:		"+mySuiteNumber); // = Primary Address Unit Start
-	aa.print("myCultivation:		"+myCultivation); // = AInfo["Cultivation"];
-	aa.print("myManufacturing:		"+myManufacturing); // = AInfo["Manufacturing"];
-	aa.print("myTotalSiteSqFt:		"+myTotalSiteSqFt); // = AInfo["Square Footage (SQFT) of Your Business"];
-	aa.print("myCanopySqFt:			"+myCanopySqFt); // = AInfo["Square Foot of Canopy"];
-	aa.print("myManufacturingSF:	"+myManufacturingSF); // = AInfo["Square Foot of Manufacturing"];
+	logDebug("**** my values are ****");
+	logDebug("myBusinessName:		"+myBusinessName); // = AInfo["DBA Name"];
+	logDebug("mySuiteNumber:		"+mySuiteNumber); // = Primary Address Unit Start
+	logDebug("myCultivation:		"+myCultivation); // = AInfo["Cultivation"];
+	logDebug("myManufacturing:		"+myManufacturing); // = AInfo["Manufacturing"];
+	logDebug("myTotalSiteSqFt:		"+myTotalSiteSqFt); // = AInfo["Square Footage (SQFT) of Your Business"];
+	logDebug("myCanopySqFt:			"+myCanopySqFt); // = AInfo["Square Foot of Canopy"];
+	logDebug("myManufacturingSF:	"+myManufacturingSF); // = AInfo["Square Foot of Manufacturing"];
+	
+	var searchMap = aa.util.newHashMap(); // Map<columnName, List<columnValue>>
+	
+	// Create a List object to add the value of Column.
+	var columnName ="Business Name";
+	var valuesList = aa.util.newArrayList();
+	valuesList.add(myBusinessName);
+	searchMap.put(columnName, valuesList);
+	
+	var appSpecificTableInfo = aa.appSpecificTableScript.getAppSpecificTableInfo(parentCapId, tableName, searchMap);
+	if (appSpecificTableInfo.getSuccess())
+	{
+		var appSpecificTableModel = appSpecificTableInfo.getOutput().getAppSpecificTableModel();
+		var tableFields = appSpecificTableModel.getTableFields(); // List<BaseField>
+		if (tableFields != null)
+		{
+			logDebug("TABLE FIELDS = " + tableFields);
+			logDebug("tableFields size = " + tableFields.size());
+		}	
+		if (tableFields != null && tableFields.size() > 0)
+		{
+			var updateRowsMap = aa.util.newHashMap(); 
+			for (var i=0; i < tableFields.size(); i++)
+			{
+				var fieldObject = tableFields.get(i); // BaseField
+				logDebug("fieldObject = " + fieldObject);
+				//get the column name.
+				var columnName = fieldObject.getFieldLabel();
+				//get the value of column
+				var columnValue = fieldObject.getInputValue();
+				//get the row ID 
+				var rowID = fieldObject.getRowIndex();
+				logDebug(columnName + ": " + columnValue + "   rowID: " + rowID);
 
+				cannabisSetUpdateColumnValue(updateRowsMap, rowID, "Suite Number", mySuiteNumber);
+				cannabisSetUpdateColumnValue(updateRowsMap, rowID, "Cultivation", myCultivation);
+				cannabisSetUpdateColumnValue(updateRowsMap, rowID, "Manufacturing", myManufacturing );
+				cannabisSetUpdateColumnValue(updateRowsMap, rowID, "Total Unit SqFt", myTotalSiteSqFt);
+				cannabisSetUpdateColumnValue(updateRowsMap, rowID, "Canopy SqFt", myCanopySqFt);
+				cannabisSetUpdateColumnValue(updateRowsMap, rowID, "Manufacturing SF", myManufacturingSF);
+			
+			}
+			if (!updateRowsMap.isEmpty())
+			{	
+				success = cannabisUpdateAppSpecificTableInfors(tableName, parentCapId, updateRowsMap);
+				logDebug("Result of CannabisUpdate Call: " + success);
+			}
+				
+			else 
+				{logDebug("no updates identified");}
+		}
+		else // this is a new row in the table - table is empty
+		{
+			// table name
+			var tableName = "TENANT INFORMATION";
+			// rows data, element is Map<columnName, columnValue>.
+			var testAsitFieldArray = [];
+			//Create a map to save the field and value map.
+			// row 1
+			var asitFieldsRow1 = aa.util.newHashMap(); // Map<columnName, columnValue>
 
-	// use  line below to set up your test
-	//editAppSpecific("City of Lancaster License Number", "CL18-00021");
+			asitFieldsRow1.put("Business Name",myBusinessName);
+			asitFieldsRow1.put("Suite Number",mySuiteNumber);
+			asitFieldsRow1.put("Cultivation", myCultivation);
+			asitFieldsRow1.put("Manufacturing", myManufacturing);
+			asitFieldsRow1.put("Total Unit SqFt", myTotalSiteSqFt);
+			asitFieldsRow1.put("Canopy SqFt", myCanopySqFt);
+			asitFieldsRow1.put("Manufacturing SF", myManufacturingSF);
+			testAsitFieldArray.push(asitFieldsRow1);
 
+			// add asit data 
+			var tenantAppSpecAddOK = false;
+			tenantAppSpecAddOK = cannabisAddAppSpecificTableInfors(tableName, parentCapId, testAsitFieldArray);
+			return tenantAppSpecAddOK;
+		}
+	}
+	else
+	{
+		logDebug("Business Name not found in Parent Primary ASIT");
+		success = false;
+	}
+	
+	logDebug("<font color=red><b>END</b> of updateCannabisPrimaryTable "+capId+" </font>");
+	return success;
+}
+
+function copyCannabisTenantInfoToCannabisPrimaryLicenseASIT(tableName, priCapId) {
+//showDebug = true;
+//showMessage = true;
+	logDebug("<font color=red><b>START</b> of copyCannabisTenantInfoToCannabisPrimaryLicenseASIT "+capId+" </font>");
+	logDebug("the cap id is:"+capId);
+		
 	var tenantParentPrimaryCapId = getApplication(AInfo["City of Lancaster License Number"]);
 
 	if (tenantParentPrimaryCapId != '' && tenantParentPrimaryCapId != null) { 
-		aa.print("the cap exists!"); 
+		logDebug("the cap exists!"); 
 
-		// table name
-		var tableName = "TENANT INFORMATION";
-		// rows data, element is Map<columnName, columnValue>.
-		var testAsitFieldArray = [];
-		//Create a map to save the field and value map.
-		// row 1
-		var asitFieldsRow1 = aa.util.newHashMap(); // Map<columnName, columnValue>
-
-		asitFieldsRow1.put("Business Name",myBusinessName);
-		asitFieldsRow1.put("Suite Number",mySuiteNumber);
-		asitFieldsRow1.put("Cultivation", myCultivation);
-		asitFieldsRow1.put("Manufacturing", myManufacturing);
-		asitFieldsRow1.put("Total Unit SqFt", myTotalSiteSqFt);
-		asitFieldsRow1.put("Canopy SqFt", myCanopySqFt);
-		asitFieldsRow1.put("Manufacturing SF", myManufacturingSF);
-		testAsitFieldArray.push(asitFieldsRow1);
-
-		// add asit data 
-		var tenantAppSpecCopyOK = false;
-		tenantAppSpecCopyOK = cannabisAddAppSpecificTableInfors(tableName, tenantParentPrimaryCapId, testAsitFieldArray);
-		if (tenantAppSpecCopyOK ) { 
-			aa.print("Data has been copied to Primary License Table"); 
+		var tenantAppSpecUpdateOK = false;
+		tenantAppSpecUpdateOK = updateCannabisPrimaryTable(tenantParentPrimaryCapId);
+		if (tenantAppSpecUpdateOK ) { 
+			logDebug("Data has been updated to Primary License Table"); 
 		}
 		else { 
-			aa.print("Data WAS NOT copied to License Table!!!!!!!!!!!!!");
+			logDebug("Data WAS NOT updated to License Table!!!!!!!!!!!!!");
 			showMessage = true; comment("<font color=red><b>WARNING:</b> Tenant Data WAS NOT copied to License Table!</font>");
 		}
 
@@ -2263,22 +2422,22 @@ function copyCannabisTenantInfoToCannabisPrimaryLicenseASIT() {
 		var primLicTotSF = getAppSpecific("Square Footage (SQFT) of Your Business", tenantParentPrimaryCapId);
 		var primLicOperationSquareFoot = getAppSpecific("Local License Operation Square Footage",tenantParentPrimaryCapId);
 		
-		if (!primLicOperationSquareFoot) { primLicOperationSquareFoot = 0; aa.print("primLicOperationSquareFoot was null or zero!"); }
-		if (!primLicTotSF) { primLicTotSF = 0; aa.print("primLicTotSF was null or zero!"); }
+		if (!primLicOperationSquareFoot) { primLicOperationSquareFoot = 0; logDebug("primLicOperationSquareFoot was null or zero!"); }
+		if (!primLicTotSF) { primLicTotSF = 0; logDebug("primLicTotSF was null or zero!"); }
 
 		var primLicTotSFCheck = Number(primLicOperationSquareFoot) + Number(primLicTenantTotSF);
 
-		aa.print("the primary lic Tenant total SF is:"+primLicTenantTotSF);
-		aa.print("the primary Lic total SF is:"+primLicTotSF);
-		aa.print("the primary license Operation Square Foot is:"+primLicOperationSquareFoot);
-		aa.print("the primary Lic Total SF to check is:"+primLicTotSFCheck);
+		logDebug("the primary lic Tenant total SF is:"+primLicTenantTotSF);
+		logDebug("the primary Lic total SF is:"+primLicTotSF);
+		logDebug("the primary license Operation Square Foot is:"+primLicOperationSquareFoot);
+		logDebug("the primary Lic Total SF to check is:"+primLicTotSFCheck);
 		
 		//get the primary license Local License Operation Square Footage
 		
 		
 		if (primLicTotSFCheck > primLicTotSF) {
-			aa.print("the tenant total sf on the Primary is GREATER THAN the total square footage of your business!");
-			aa.print("because of this, a conditional hold must be done and Primary License must be updated.");
+			logDebug("the tenant total sf on the Primary is GREATER THAN the total square footage of your business!");
+			logDebug("because of this, a conditional hold must be done and Primary License must be updated.");
 			// place a hold condition on this tenant app so that City can update the Primary first!
 			var conditionGroup = "Licensing",
 				conditionType = "Cannabis Primary License Needs Update",
@@ -2296,7 +2455,7 @@ function copyCannabisTenantInfoToCannabisPrimaryLicenseASIT() {
             //Create new empty cap condition model and set the expected values.
             var newCondModel = aa.capCondition.getNewConditionScriptModel().getOutput();
 			
-			aa.print("********* PRINTING the empty condition model! **************");
+			logDebug("********* PRINTING the empty condition model! **************");
 //			printObjProperties(newCondModel);
 			
             newCondModel.setCapID(capId);
@@ -2320,62 +2479,63 @@ function copyCannabisTenantInfoToCannabisPrimaryLicenseASIT() {
             newCondModel.setImpactCode(impactCode);
             newCondModel.setInheritable(condInheretible);
 
-			aa.print("********* PRINTING the POPULATED condition model! **************");
+			logDebug("********* PRINTING the POPULATED condition model! **************");
 			printObjProperties(newCondModel);
 
-aa.print("calling create cap condition!");
+logDebug("calling create cap condition!");
             aa.capCondition.createCapCondition(newCondModel);
-aa.print("finished calling create cap condition!");
+logDebug("finished calling create cap condition!");
 		}
 		else {
-			aa.print("the tenant total sf on the Primary is less than or equal to the total square footage of your business!");
-			aa.print(" no update of fees or conditional hold is necessary!");
+			logDebug("the tenant total sf on the Primary is less than or equal to the total square footage of your business!");
+			logDebug(" no update of fees or conditional hold is necessary!");
 		}
 	}
 	else { 
-		aa.print("the cap does not exist!"); 
+		logDebug("the cap does not exist!"); 
 		showMessage = true; comment("<font color=red><b>WARNING:</b> Parent Primary License does not exist in system!</font>");
 	}
 //	showDebug = true;
 //	showMessage = true;
-	aa.print("<font color=red><b>END</b> of copyCannabisTenantInfoToCannabisPrimaryLicenseASIT</font>");
+	logDebug("<font color=red><b>END</b> of copyCannabisTenantInfoToCannabisPrimaryLicenseASIT</font>");
 }
 
 function cannabisGetPrimaryLicASITColumnTotal(aCapId, aTableName, aColName) {
-//	showDebug = true;
-//	showMessage = true;
 	logDebug("*********** START of cannabisGetPrimaryLicASITColumnTotal");
 	logDebug("*** aCapId:"+aCapId);
 	logDebug("*** aTableName:"+aTableName);
 	logDebug("*** aColName:"+aColName);
 
-	var tPrimarySiteInfo = loadASITable(aTableName, aCapId);
+	if (controlString == "ApplicationSubmitBefore") {
+		loadASITablesBefore();
+		
+		
+		if (typeof (eval(aTableName)) == "object") {
+			var tPrimarySiteInfo =  eval(aTableName);
+		}
+		else {
+			logDebug("could not determine table object!");
+		}
+	}
+	else {
+		var tPrimarySiteInfo = loadASITable(aTableName, aCapId);
+	}
 	
 	if (tPrimarySiteInfo) {
-//		showDebug = true;
-//		showMessage = true;
 		logDebug("there are this many rows in the table:" + tPrimarySiteInfo.length );
 		var arrRowID;
 		var xTotSF = 0;
 		for (arrRowID in tPrimarySiteInfo) {
-//			showDebug = true;
-//			showMessage = true;
 			var myTRow = tPrimarySiteInfo[arrRowID];
 			for(myTRowKey in myTRow){
-//				showDebug = true;
-//				showMessage = true;
 				if (myTRowKey == aColName) {
 					xTotSF += Number(myTRow[myTRowKey]);
 				}
 			}
 		}
-//		showMessage = true;
-//		showDebug = true;	
 		logDebug("The total SF is: "+xTotSF);
 	}
 	else { 
-//		showMessage = true;
-//		showDebug = true;		
 		logDebug("no table information exists on this license:"+aCapId);
 	}
 
@@ -2390,8 +2550,6 @@ function sumPrimaryASITSquareFeetAndReplaceTotalSFASI() {
 
  if you send in blanks for fee schedule no fee will be assessed!
 */
-//	showDebug = true;
-//	showMessage = true;
 	logDebug("START of sumPrimaryASITSquareFeetAndReplaceTotalSFASI");
 
 	var retVal = false;
@@ -2584,19 +2742,19 @@ function printObjProperties(obj){
     var idx;
 
     if(obj.getClass != null){
-        aa.print("************* " + obj.getClass() + " *************");
+        logDebug("************* " + obj.getClass() + " *************");
     }
 	else {
-		aa.print("this is not an object with a class!");
+		logDebug("this is not an object with a class!");
 	}
 
     for(idx in obj){
         if (typeof (obj[idx]) == "function") {
             try {
-                aa.print(idx + "==>  " + obj[idx]());
+                logDebug(idx + "==>  " + obj[idx]());
             } catch (ex) { }
         } else {
-            aa.print(idx + ":  " + obj[idx]);
+            logDebug(idx + ":  " + obj[idx]);
         }
     }
 }
@@ -2607,7 +2765,7 @@ function sumPrimaryAppASITSquareFeetAndReplaceTotalSFASI() {
 	showDebug = true;
 	showMessage = true;
 	logDebug("START of sumPrimaryAppASITSquareFeetAndReplaceTotalSFASI");
-        aa.print("START of sumPrimaryAppASITSquareFeetAndReplaceTotalSFASI");
+    aa.print("START of sumPrimaryAppASITSquareFeetAndReplaceTotalSFASI");
 		
 	var sumTotSF = cannabisGetPrimaryLicASITColumnTotal(capId,"SITE INFORMATION", "Total SqFt") || 0;
 
@@ -2620,59 +2778,167 @@ function sumPrimaryAppASITSquareFeetAndReplaceTotalSFASI() {
     aa.print("END of sumPrimaryAppASITSquareFeetAndReplaceTotalSFASI");
 }
 
+
+function sumPrimaryRenewalASITSquareFeetAndReplaceTotalSFASI() {
+
+	showDebug = true;
+	showMessage = true;
+	logDebug("START of sumPrimaryRenewalASITSquareFeetAndReplaceTotalSFASI");
+	aa.print("START of sumPrimaryRenewalASITSquareFeetAndReplaceTotalSFASI");
+		
+	var prevTotSF = getAppSpecific("Square Footage (SQFT) of Your Business",capId);
+	var sumTotSF = cannabisGetPrimaryLicASITColumnTotal(capId, "SITE INFORMATION", "Total SqFt") || 0;
+
+	if (sumTotSF <= prevTotSF){ 
+		logDebug("The new facility Sqft total is less than or equal to the Previous Facility Sqft");
+
+	}
+	else {
+		logDebug("The new facility Sqft total is greater than the Previous Facility Sqft");
+	}	
+	
+	//Display Sqft values
+	logDebug("Previous Facility SF was:"+prevTotSF);
+	aa.print("Previous Facility SF was:"+prevTotSF);
+	logDebug("New Facility SQFT is:"+sumTotSF);
+	aa.print("New Facility SQFT is:"+sumTotSF);
+
+	
+	//Edit Facility Sqft ASI fields
+	editAppSpecific("Square Footage (SQFT) of Your Business",sumTotSF);
+	editAppSpecific("Total Facility Sqft Tracking",sumTotSF);
+	updateFee("MCLR020","LIC_CANN_LOC_REN","FINAL",prevTotSF,"N");
+
+	logDebug("END of sumPrimaryRenewalASITSquareFeetAndReplaceTotalSFASI");
+	aa.print("END of sumPrimaryRenewalASITSquareFeetAndReplaceTotalSFASI");
+}
+
+
+function sumPrimaryRenewalCanopySquareFeetAndReplaceTotalSFASI() {
+
+	showDebug = true;
+	showMessage = true;
+	logDebug("START of sumPrimaryRenewalCanopySquareFeetAndReplaceTotalSFASI");
+	aa.print("START of sumPrimaryRenewalCanopySquareFeetAndReplaceTotalSFASI");
+	
+	var prevTotCanopySF = getAppSpecific("Total Square Foot of Canopy",capId);
+	var primCanopySF = getAppSpecific("Square Foot of Canopy",capId);
+	var tenantCanopySF = cannabisGetPrimaryLicASITColumnTotal(capId,"TENANT INFORMATION", "Canopy SqFt") || 0;
+		
+	if (primCanopySF == null) {
+		primCanopySF = "0";
+	}	
+
+	if (tenantCanopySF == null) {
+		tenantCanopySF = "0";
+	}
+	
+	logDebug("Primary License Canopy SF is: "+primCanopySF);
+	logDebug("Tenant License Canopy SF is: "+tenantCanopySF);
+	
+	var newTotCanopySF = 0 + parseInt(primCanopySF) + parseInt(tenantCanopySF);		
+		
+	// now update the ASI!
+		editAppSpecific("Total Square Foot of Canopy",newTotCanopySF);	
+		logDebug("Previous Total SqFt of Canopy: " +prevTotCanopySF);
+		aa.print("Previous Total SqFt of Canopy: " +prevTotCanopySF);		
+		logDebug("New Total Sqft of Canopy: " +newTotCanopySF);
+		aa.print("New Total Sqft of Canopy: " +newTotCanopySF);
+		
+	logDebug("END of sumPrimaryRenewalCanopySquareFeetAndReplaceTotalSFASI");
+	aa.print("END of sumPrimaryRenewalCanopySquareFeetAndReplaceTotalSFASI");
+}
+
+
+function sumPrimaryRenewalManufacturingSquareFeetAndReplaceTotalSFASI() {
+
+	showDebug = true;
+	showMessage = true;
+	logDebug("START of sumPrimaryRenewalManufacturingSquareFeetAndReplaceTotalSFASI");
+	aa.print("START of sumPrimaryRenewalManufacturingSquareFeetAndReplaceTotalSFASI");
+	
+	var prevTotMfgSF = getAppSpecific("Total Square Foot of Manufacturing",capId);
+	var primMfgSF = getAppSpecific("Square Foot of Manufacturing",capId);
+	var tenantMfgSF = cannabisGetPrimaryLicASITColumnTotal(capId,"TENANT INFORMATION", "Manufacturing SF") || 0;
+		
+	if (primMfgSF == null) {
+		primMfgSF = "0";
+	}	
+
+	if (tenantMfgSF == null) {
+		tenantMfgSF = "0";
+	}
+	
+	logDebug("Primary License Manufacturing SF is: "+primMfgSF);
+	logDebug("Tenant License Manufacturing SF is: "+tenantMfgSF);
+	
+	var newTotMfgSF = 0 + parseInt(primMfgSF) + parseInt(tenantMfgSF);		
+		
+	// now update the ASI!
+		editAppSpecific("Total Square Foot of Manufacturing",newTotMfgSF);	
+		logDebug("Previous Total SqFt of Manufacturing: " +prevTotMfgSF);
+		logDebug("Previous Total SqFt of Manufacturing: " +prevTotMfgSF);		
+		logDebug("New Total Sqft of Manufacturing: " +newTotMfgSF);
+		logDebug("New Total Sqft of Manufacturing: " +newTotMfgSF);
+		
+	logDebug("END of sumPrimaryRenewalManufacturingSquareFeetAndReplaceTotalSFASI");
+	aa.print("END of sumPrimaryRenewalManufacturingSquareFeetAndReplaceTotalSFASI");
+}
+
 // 7-11-2018: new requirement to copy the total canopy and manufacture SF to 
 //				primary lic ASI fields (add with to the primary ASI)
 
 function addCannabisTenantCanopyAndManufactureToPrimaryLicenseASI() {
-	aa.print("<font color=red><b>START</b> of addCannabisTenantCanopyAndManufactureToPrimaryLicenseASI "+capId+" </font>");
-	aa.print("the cap id is:"+capId);
+	logDebug("<font color=red><b>START</b> of addCannabisTenantCanopyAndManufactureToPrimaryLicenseASI "+capId+" </font>");
+	logDebug("the cap id is:"+capId);
 	
 	var tenantParentPrimaryCapId = getApplication(AInfo["City of Lancaster License Number"]);
 
 	if (tenantParentPrimaryCapId != '' && tenantParentPrimaryCapId != null) { 
-		aa.print("the cap exists!"); 
+		logDebug("the cap exists!"); 
 
 		var thisCanopySqFt 		= AInfo["Square Foot of Canopy"];
 		var thisManufacturingSF = AInfo["Square Foot of Manufacturing"];
 
 		var primLicCanopyTotSF = getAppSpecific("Total Square Foot of Canopy", tenantParentPrimaryCapId);
 		var newPrimLicTotSFCanopy = 0 + parseInt(thisCanopySqFt) + parseInt(primLicCanopyTotSF);
-		aa.print("the primary license canopy SF is:"+primLicCanopyTotSF);
-		aa.print("the NEW primary license canopy SF is:"+newPrimLicTotSFCanopy);
+		logDebug("the primary license canopy SF is:"+primLicCanopyTotSF);
+		logDebug("the NEW primary license canopy SF is:"+newPrimLicTotSFCanopy);
 		editAppSpecific("Total Square Foot of Canopy",newPrimLicTotSFCanopy,tenantParentPrimaryCapId);
-		aa.print("just updated ASI: Total Square Foot of Canopy with new value on cap:"+tenantParentPrimaryCapId);
+		logDebug("just updated ASI: Total Square Foot of Canopy with new value on cap:"+tenantParentPrimaryCapId);
 		
 		var primLicManuTotSF = getAppSpecific("Total Square Foot of Manufacturing",tenantParentPrimaryCapId);
 		var newPrimLicTotSFManu = 0 + parseInt(thisManufacturingSF) + parseInt(primLicManuTotSF);
-		aa.print("the primary license manufacture SF is:"+primLicManuTotSF);
-		aa.print("the NEW primary license manufacture SF is:"+newPrimLicTotSFManu);
+		logDebug("the primary license manufacture SF is:"+primLicManuTotSF);
+		logDebug("the NEW primary license manufacture SF is:"+newPrimLicTotSFManu);
 		editAppSpecific("Total Square Foot of Manufacturing",newPrimLicTotSFManu,tenantParentPrimaryCapId);
-		aa.print("just updated ASI: Total Square Foot of Manufacturing with new value on cap:"+tenantParentPrimaryCapId);
+		logDebug("just updated ASI: Total Square Foot of Manufacturing with new value on cap:"+tenantParentPrimaryCapId);
 	}
 	else { 
-		aa.print("the cap does not exist!"); 
+		logDebug("the cap does not exist!"); 
 		showMessage = true; comment("<font color=red><b>WARNING:</b> Parent Primary License does not exist in system!</font>");
 	}
-	aa.print("<font color=red><b>END</b> of addCannabisTenantCanopyAndManufactureToPrimaryLicenseASI "+capId+" </font>");
+	logDebug("<font color=red><b>END</b> of addCannabisTenantCanopyAndManufactureToPrimaryLicenseASI "+capId+" </font>");
 }
 
 
 function checkPrimaryAppTenantInfo() {
-	aa.print("START OF CHECKPRIMARYAPPTENANTINFO!");
+	logDebug("START OF CHECKPRIMARYAPPTENANTINFO!");
 
 	loadASITablesBefore();
 	
 	if (typeof TENANTINFORMATION == "object") {
 		var checkTenantTable = TENANTINFORMATION.length;
-		aa.print("check tenant table is:"+checkTenantTable);
+		logDebug("check tenant table is:"+checkTenantTable);
 		if (checkTenantTable >= 1) {
 			cancel=true;
-			aa.print("canceling this event!!!!");
+			logDebug("canceling this event!!!!");
 			comment("<font color=red><b>You may not enter tenant information on the Primary Application.  This must be done on the TENANT application.</b></font>");
 		}
 	}
-	aa.print("END OF CHECKPRIMARYAPPTENANTINFO!");	
+	logDebug("END OF CHECKPRIMARYAPPTENANTINFO!");	
 }
+
 
 function checkArrayForDuplicates(a) {
     var counts = [];
@@ -2687,7 +2953,7 @@ function checkArrayForDuplicates(a) {
 }
 
 function checkForSiteInfoDupeBuildings() {
-	aa.print("START OF checkForSiteInfoDupeBuildings!");
+	logDebug("START OF checkForSiteInfoDupeBuildings!");
 	loadASITablesBefore();
 	
 	if (typeof SITEINFORMATION == "object") {
@@ -2710,8 +2976,273 @@ function checkForSiteInfoDupeBuildings() {
 			comment("<font color=red><b>Please do not enter duplicate Building # in the Site Information table!</b></font>");
 		}
 		else {
-			aa.print("no duplicate building numbers found")
+			logDebug("no duplicate building numbers found")
 		}
 	}
-	aa.print("END OF checkForSiteInfoDupeBuildings!");	
+	logDebug("END OF checkForSiteInfoDupeBuildings!");	
 }
+
+
+
+
+function checkLicOperationGreaterTotalBusinessSF() {
+	logDebug("START OF checkLicOperationGreaterTotalBusinessSF!");
+
+logDebug("the control string is:"+controlString);
+
+	var licOpSF = parseInt(AInfo["Local License Operation Square Footage"]);
+
+// make sure you pass in the table name with no spaces on a before event!
+
+	if (controlString == "ApplicationSubmitBefore") {
+
+		var licTotSF = cannabisGetPrimaryLicASITColumnTotal(capId, "SITEINFORMATION", "Total SqFt") || 0;
+	}
+	else {
+		var licTotSF = cannabisGetPrimaryLicASITColumnTotal(capId, "SITE INFORMATION", "Total SqFt") || 0;
+	}
+
+	logDebug("the lic op SF:"+licOpSF);
+	logDebug("the lic tot SF:"+licTotSF);
+	
+	if ( licOpSF > licTotSF ) {
+		logDebug("OP IS GREATER THAN TOTAL!");
+		cancel = true;
+		comment("<font color=red><b>Operational Square Feet cannot be greater than Total Square Feet of your Business!</b></font>");
+	}
+	else {
+		logDebug("op is not greater than total")
+	}
+	logDebug("END OF checkLicOperationGreaterTotalBusinessSF!");	
+}
+
+
+// 07-30-2018 - need to assess renewal fees when renewal record is created.
+
+function assessPrimaryCannabisLicRenewalFees() {
+	logDebug("<font color=red><b>START</b> of assessPrimaryCannabisLicRenewalFees "+capId+" </font>");
+	logDebug("the cap id is:"+capId);
+	
+	logDebug("AInfo-Square Footage (SQFT) of Your Business:"+ AInfo["Square Footage (SQFT) of Your Business"]);
+	logDebug("AInfo-Total Square Foot of Canopy:"+ AInfo["Total Square Foot of Canopy"]);
+	logDebug("AInfo-Manufacturing:"+ AInfo["Manufacturing"]);
+	
+	if ( AInfo["Square Footage (SQFT) of Your Business"] ) {
+		updateFee("MCLR020","LIC_CANN_LOC_REN","FINAL",AInfo["Square Footage (SQFT) of Your Business"],"N");
+	}
+	
+	if ( AInfo["Total Square Foot of Canopy"] ) {
+		updateFee("MCLR030","LIC_CANN_LOC_REN","FINAL",AInfo["Total Square Foot of Canopy"],"N");
+	}
+	
+	if ( AInfo["Manufacturing"] ) {
+		updateFee("MCLR040","LIC_CANN_LOC_REN","FINAL",1,"Y");
+	} 
+	
+	logDebug("<font color=red><b>END</b> of assessPrimaryCannabisLicRenewalFees "+capId+" </font>");
+	
+}
+
+function cannabisSetUpRenewalStatusForRenewed(capid) {
+		var reviewResult = aa.cap.getProjectByChildCapID(capid, "Renewal", "Incomplete");
+			if(reviewResult.getSuccess()) {
+				var projectScriptModels = reviewResult.getOutput();
+				var projectScriptModel = projectScriptModels[0];
+				projectScriptModel.setStatus("Review");
+				aa.cap.updateProject(projectScriptModel);
+				logDebug("just updated ("+capid+") renewal status to Review... here is object:");
+				printObjProperties(projectScriptModel);
+			}  
+			else 
+			{
+			  logDebug("ERROR: Failed to get renewal CAP by parent CAP(" + capId + ") for review: " + reviewResult.getErrorMessage());
+			}
+}
+
+
+// the following 4 functions where copied out of workflowtaskupdateafter4renew
+// the wtua4renew script does not appear to be copying contacts correctly as of 09.27.2018 so we are creating our own patch
+//
+//function copyContactsWithAddress_SLS
+//function removeContactsFromCap_SLS
+//function getParentCapIDForReview_SLS
+//RenewalCopyContacts_SLS
+
+function copyContactsWithAddress_SLS(pFromCapId, pToCapId)
+{
+   // Copies all contacts from pFromCapId to pToCapId and includes Contact Address objects
+   //
+   if (pToCapId == null)
+   var vToCapId = capId;
+   else
+   var vToCapId = pToCapId;
+
+   removeContactsFromCap_SLS(pToCapId);
+
+   logDebug("Copying contacts with addresses");
+   var capContactResult = aa.people.getCapContactByCapID(pFromCapId);
+   var copied = 0;
+   if (capContactResult.getSuccess())
+   {
+      var Contacts = capContactResult.getOutput();
+
+      for (yy in Contacts)
+      {
+         var newContact = Contacts[yy].getCapContactModel();
+
+
+//logDebug("looping through contacts and the contact model for this one looks like:");
+//logDebug(">>>> contact name:"+newContact.contactName);
+//logDebug(">>>> getContactTypeFlag:"+newContact.getContactTypeFlag());
+logDebug(">>>> contactSeqNumber:"+newContact.contactSeqNumber);
+//logDebug(">>>> phone1:"+newContact.phone1);
+//logDebug(">>>> phone2:"+newContact.phone2);
+//logDebug(">>>> phone3:"+newContact.phone3);
+
+         var newPeople = newContact.getPeople();
+         var addressList = aa.address.getContactAddressListByCapContact(newContact).getOutput();
+         newContact.setCapID(vToCapId);
+         aa.people.createCapContact(newContact);
+         newerPeople = newContact.getPeople();
+         // contact address copying
+         if (addressList)
+         {
+            for (add in addressList)
+            {
+
+               var transactionAddress = false;
+               contactAddressModel = addressList[add].getContactAddressModel();
+//logDebug("**************** and the address Model is ***************");
+//printObjProperties(contactAddressModel);
+               if (contactAddressModel.getEntityType() == "CAP_CONTACT")
+               {
+                  transactionAddress = true;
+                  contactAddressModel.setEntityID(parseInt(newerPeople.getContactSeqNumber()));
+               }
+               // Commit if transaction contact address
+               if(transactionAddress)
+               {
+logDebug("*******************it is a transaction address not ref*******************");				   
+                  var newPK = new com.accela.orm.model.address.ContactAddressPKModel();
+                  contactAddressModel.setContactAddressPK(newPK);
+               }
+               // Commit if reference contact address
+               else
+               {
+logDebug("*******************it is a REF address not txn *******************");				   
+                  // build model
+                  var Xref = aa.address.createXRefContactAddressModel().getOutput();
+                  Xref.setContactAddressModel(contactAddressModel);
+                  Xref.setAddressID(addressList[add].getAddressID());
+                  Xref.setEntityID(parseInt(newerPeople.getContactSeqNumber()));
+                  Xref.setEntityType(contactAddressModel.getEntityType());
+                  Xref.setCapID(vToCapId);
+                  // commit address
+                  aa.address.createXRefContactAddress(Xref.getXRefContactAddressModel());
+               }
+
+            }
+         }
+         // end if
+         copied ++ ;
+         logDebug("Copied contact from " + pFromCapId.getCustomID() + " to " + vToCapId.getCustomID());
+      }
+   }
+   else
+   {
+      logDebug("**ERROR: Failed to get contacts: " + capContactResult.getErrorMessage());
+      return false;
+   }
+   return copied;
+
+}
+
+function removeContactsFromCap_SLS(recordCapId)
+{
+   var cons = aa.people.getCapContactByCapID(recordCapId).getOutput();
+   for (x in cons)
+   {
+      conSeqNum = cons[x].getPeople().getContactSeqNumber();
+      aa.people.removeCapContact(recordCapId, conSeqNum);
+   }
+}
+
+function getParentCapIDForReview_SLS(capid)
+{
+	if (capid == null || aa.util.instanceOfString(capid))
+	{
+		return null;
+	}
+	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "Review");
+    if(result.getSuccess())
+	{
+		projectScriptModels = result.getOutput();
+//		printObjProperties(projectScriptModels);
+		if (projectScriptModels == null || projectScriptModels.length == 0)
+		{
+			logDebug("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
+			return null;
+		}
+		//2. return parent CAPID.
+		projectScriptModel = projectScriptModels[0];
+//		logDebug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> printing the projectScriptModel <<<<<<<<<<<<<<<<<<<<<<<<");
+//		printObjProperties(projectScriptModel);
+		return projectScriptModel.getProjectID();
+	}  
+    else 
+    {
+      logDebug("ERROR: Failed to get parent CAP by child CAP(" + capid + ") for review: " + result.getErrorMessage());
+      return null;
+    }
+}
+
+function RenewalCopyContacts_SLS() {
+	logDebug("************* START OF RENEWAL COPY CONTACTS SLS ***********************");
+
+	var parentLicenseCAPID = getParentCapIDForReview_SLS(capId)
+	if (parentLicenseCAPID != null)
+	{
+		var parentCapId = aa.cap.getCapID(parentLicenseCAPID.getID1(),parentLicenseCAPID.getID2(),parentLicenseCAPID.getID3()).getOutput();
+		copyContactsWithAddress_SLS(capId, parentCapId);
+	}
+	else {
+		cancel = true;
+		logDebug("******************** SOMETHING IS WRONG WITH THE PARENT CHILD RELATIONSHIP ****************")
+		var chkParent = getParentCapIDForRenewNoStatus_SLS(capId);
+		printObjProperties(chkParent);
+		
+		
+	}
+	logDebug("************* END OF RENEWAL COPY CONTACTS SLS ***********************");
+}
+
+function getParentCapIDForRenewNoStatus_SLS(capid)
+{
+	if (capid == null || aa.util.instanceOfString(capid))
+	{
+		logDebug("you passed in a null!");
+		return null;
+	}
+	var result = aa.cap.getProjectByChildCapID(capid, "Renewal", "");
+    if(result.getSuccess())
+	{
+		projectScriptModels = result.getOutput();
+		printObjProperties(projectScriptModels);
+		if (projectScriptModels == null || projectScriptModels.length == 0)
+		{
+			logDebug("ERROR: Failed to get parent CAP with CAPID(" + capid + ") for review");
+			return null;
+		}
+		//2. return parent CAPID.
+		projectScriptModel = projectScriptModels[0];
+		logDebug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> printing the projectScriptModel <<<<<<<<<<<<<<<<<<<<<<<<");
+		printObjProperties(projectScriptModel);
+		return projectScriptModel.getProjectID();
+	}  
+    else 
+    {
+      logDebug("ERROR: Failed to get parent CAP by child CAP(" + capid + ") for review: " + result.getErrorMessage());
+      return null;
+    }
+}
+
