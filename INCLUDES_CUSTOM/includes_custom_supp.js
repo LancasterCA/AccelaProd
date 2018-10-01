@@ -2899,18 +2899,22 @@ function addCannabisTenantCanopyAndManufactureToPrimaryLicenseASI() {
 	if (tenantParentPrimaryCapId != '' && tenantParentPrimaryCapId != null) { 
 		logDebug("the cap exists!"); 
 
-		var thisCanopySqFt 		= AInfo["Square Foot of Canopy"];
-		var thisManufacturingSF = AInfo["Square Foot of Manufacturing"];
-
-		var primLicCanopyTotSF = getAppSpecific("Total Square Foot of Canopy", tenantParentPrimaryCapId);
-		var newPrimLicTotSFCanopy = 0 + parseInt(thisCanopySqFt) + parseInt(primLicCanopyTotSF);
+		// you can't just copy over the SF values from teh current record because there may be multiple child records, you must sum them up
+		//var thisCanopySqFt 		= AInfo["Square Foot of Canopy"];
+		//var thisManufacturingSF = AInfo["Square Foot of Manufacturing"];
+		
+		var tenantCanopySF = cannabisGetPrimaryLicASITColumnTotal(tenantParentPrimaryCapId,"TENANT INFORMATION", "Canopy SqFt") || 0;
+		var tenantMfgSF = cannabisGetPrimaryLicASITColumnTotal(tenantParentPrimaryCapId,"TENANT INFORMATION", "Manufacturing SF") || 0;
+	
+		var primLicCanopyTotSF = getAppSpecific("Square Foot of Canopy", tenantParentPrimaryCapId);
+		var newPrimLicTotSFCanopy = 0 + parseInt(tenantCanopySF) + parseInt(primLicCanopyTotSF);
 		logDebug("the primary license canopy SF is:"+primLicCanopyTotSF);
 		logDebug("the NEW primary license canopy SF is:"+newPrimLicTotSFCanopy);
 		editAppSpecific("Total Square Foot of Canopy",newPrimLicTotSFCanopy,tenantParentPrimaryCapId);
 		logDebug("just updated ASI: Total Square Foot of Canopy with new value on cap:"+tenantParentPrimaryCapId);
 		
-		var primLicManuTotSF = getAppSpecific("Total Square Foot of Manufacturing",tenantParentPrimaryCapId);
-		var newPrimLicTotSFManu = 0 + parseInt(thisManufacturingSF) + parseInt(primLicManuTotSF);
+		var primLicManuTotSF = getAppSpecific("Square Foot of Manufacturing",tenantParentPrimaryCapId);
+		var newPrimLicTotSFManu = 0 + parseInt(tenantMfgSF) + parseInt(primLicManuTotSF);
 		logDebug("the primary license manufacture SF is:"+primLicManuTotSF);
 		logDebug("the NEW primary license manufacture SF is:"+newPrimLicTotSFManu);
 		editAppSpecific("Total Square Foot of Manufacturing",newPrimLicTotSFManu,tenantParentPrimaryCapId);
