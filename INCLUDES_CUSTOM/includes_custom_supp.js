@@ -1,3 +1,5 @@
+// 09/30/2018 cleared bug adding to Primary ASI values on renewal
+
 // 09/27/2018: The following 4 functions where copied out of workflowtaskupdateafter4renew
 // the wtua4renew script does not appear to be copying contacts correctly as of 09.27.2018 so we are creating our own patch
 //
