@@ -74,8 +74,13 @@ if (isWorkflowApproveForReview(capID,
 				//4. Set B1PERMIT.B1_ACCESS_BY_ACA to "N" for partial CAP to not allow that it is searched by ACA user.
 				aa.cap.updateAccessByACA(capID, "N");			
 				//5. Set parent license to "Active"
-				if (activeLicense(parentLicenseCAPID))
-				{
+				
+// this call to activeLicnese is updating the expire date incorrectly for Cannabis licenses!  Commented it out, it now works
+// with the updateLicense call that all renewal records get on issuance inside of WTUA:Licenses/*/*/Renewal				
+				
+				
+//				if (activeLicense(parentLicenseCAPID))
+//				{
 					//6. Set renewal CAP status to "Complete"
 					renewalCapProject.setStatus("Complete");
 					logDebug("license(" + parentLicenseCAPID + ") is activated.");
@@ -90,7 +95,7 @@ if (isWorkflowApproveForReview(capID,
 					//9. Send approved license email to public user
 					aa.expiration.sendApprovedNoticEmailToCitizenUser(parentLicenseCAPID);
 					logDebug("send approved license email to citizen user.");
-				}
+//				}
 			}
 		}
 	}
