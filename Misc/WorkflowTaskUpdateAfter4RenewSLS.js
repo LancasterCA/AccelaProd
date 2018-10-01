@@ -83,7 +83,7 @@ if (isWorkflowApproveForReview(capID,
 //				{
 					//6. Set renewal CAP status to "Complete"
 					renewalCapProject.setStatus("Complete");
-					logDebug("license(" + parentLicenseCAPID + ") is activated.");
+					logDebug("license(" + parentLicenseCAPID + ") and renewal ("+ capID + ") relationship is Complete!");
 					aa.cap.updateProject(renewalCapProject);
 					//7. Copy key information from child CAP to parent CAP.
 					copyKeyInfo(capID, parentLicenseCAPID);
