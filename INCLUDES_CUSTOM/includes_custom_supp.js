@@ -2836,7 +2836,7 @@ function sumPrimaryRenewalCanopySquareFeetAndReplaceTotalSFASI() {
 	logDebug("Primary License Canopy SF is: "+primCanopySF);
 	logDebug("Tenant License Canopy SF is: "+tenantCanopySF);
 	
-	var newTotCanopySF = 0 + parseInt(primCanopySF) + parseInt(tenantCanopySF);		
+	var newTotCanopySF = 0 /*+ parseInt(primCanopySF) */ + parseInt(tenantCanopySF);		//commented out to clear issue 09-30-20189 that adds to current amount
 		
 	// now update the ASI!
 		editAppSpecific("Total Square Foot of Canopy",newTotCanopySF);	
@@ -2872,7 +2872,7 @@ function sumPrimaryRenewalManufacturingSquareFeetAndReplaceTotalSFASI() {
 	logDebug("Primary License Manufacturing SF is: "+primMfgSF);
 	logDebug("Tenant License Manufacturing SF is: "+tenantMfgSF);
 	
-	var newTotMfgSF = 0 + parseInt(primMfgSF) + parseInt(tenantMfgSF);		
+	var newTotMfgSF = 0 + parseInt(primMfgSF) + parseInt(tenantMfgSF);		//commented out to clear issue 09-30-20189 that adds to current amount
 		
 	// now update the ASI!
 		editAppSpecific("Total Square Foot of Manufacturing",newTotMfgSF);	
