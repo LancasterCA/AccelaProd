@@ -60,10 +60,10 @@ aa.env.setValue("fromDate","02/19/2017");
 
 
 // testing parameters, uncomment to use in script test
-/*
+
 aa.env.setValue("showDebug","Y");
-aa.env.setValue("fromDate","08/01/2018");
-aa.env.setValue("toDate","08/01/2018");
+aa.env.setValue("fromDate","08/02/2018");
+aa.env.setValue("toDate","08/02/2018");
 aa.env.setValue("appGroup","Licenses");
 aa.env.setValue("appTypeType","Business");
 aa.env.setValue("appSubtype","Out of Area Contractor");
@@ -84,7 +84,7 @@ aa.env.setValue("createTempRenewalRecord","");
 aa.env.setValue("feeSched","");
 aa.env.setValue("feeList","");
 aa.env.setValue("feePeriod","");
-*/
+
 /*------------------------------------------------------------------------------------------------------/
 | Program: License Expirations.js  Trigger: Batch
 | Client:
