@@ -1,36 +1,98 @@
+// for Lancaster CA
+// 08/23/2017 - added check for setting exp status to NOT set it 
+//     if you are setting it to the same value as the expStatus you searched
+
+
+//----------- run by batch job "Expire License" with batch params:
+/*-----------------------------------------------------------------
+aa.env.setValue("appCategory","License");
+aa.env.setValue("appGroup","Licenses");
+aa.env.setValue("appSubtype","*");
+aa.env.setValue("appTypeType","*");
+aa.env.setValue("createTempRenewalRecord","N");
+aa.env.setValue("daySpan","0");
+aa.env.setValue("deactivateLicense","Y");
+aa.env.setValue("emailAddress","chad@esilverliningsolutions.com");
+aa.env.setValue("emailTemplate","");
+aa.env.setValue("expirationStatus","About to Expire");
+aa.env.setValue("feeList","");
+aa.env.setValue("feePeriod","");
+aa.env.setValue("feeSched","");
+aa.env.setValue("gracePeriodDays","3650");
+aa.env.setValue("inspSched","");
+aa.env.setValue("lockParentLicense","N");
+aa.env.setValue("lookAheadDays","-35");
+aa.env.setValue("newApplicationStatus","Expired");
+aa.env.setValue("newExpirationStatus","About to Expire");
+aa.env.setValue("sendEmailToContactTypes","");
+aa.env.setValue("setPrefix","");
+aa.env.setValue("skipAppStatus","Active,Void,Pending,Cancelled,About to Expire,Expired,Revoked,Renewed");
+aa.env.setValue("fromDate","09/30/2017");
+aa.env.setValue("toDate","09/30/2017");
+-----------------------------------------------------------------*/
+
+//------------ Run By Delinquent Licenses batch job with params:
+/*-----------------------------------------------------------------
+aa.env.setValue("appCategory","License");
+aa.env.setValue("appGroup","Licenses");
+aa.env.setValue("appSubtype","*");
+aa.env.setValue("appTypeType","*");
+aa.env.setValue("createTempRenewalRecord","N");
+aa.env.setValue("daySpan","0");
+aa.env.setValue("deactivateLicense","Y");
+aa.env.setValue("emailAddress","chad@esilverliningsolutions.com");
+aa.env.setValue("expirationStatus","About to Expire");
+aa.env.setValue("feeList","");
+aa.env.setValue("feePeriod","");
+aa.env.setValue("feeSched","");
+aa.env.setValue("gracePeriodDays","0");
+aa.env.setValue("inspSched","");
+aa.env.setValue("lockParentLicense","N");
+aa.env.setValue("lookAheadDays","-35");
+aa.env.setValue("newApplicationStatus","Delinquent");
+aa.env.setValue("newExpirationStatus","");
+aa.env.setValue("sendEmailToContactTypes","");
+aa.env.setValue("setPrefix","");
+aa.env.setValue("skipAppStatus","Active,Void,Pending,Cancelled,Delinquent,Expired,Revoked,Renewed");
+aa.env.setValue("toDate","02/19/2017");
+aa.env.setValue("fromDate","02/19/2017");
+-----------------------------------------------------------------*/
+
+
 // testing parameters, uncomment to use in script test
 /*
 aa.env.setValue("showDebug","Y");
-aa.env.setValue("fromDate","11/20/2016");
-aa.env.setValue("toDate","11/21/2016");
+aa.env.setValue("fromDate","09/01/2018");
+aa.env.setValue("toDate","09/01/2018");
 aa.env.setValue("appGroup","Licenses");
 aa.env.setValue("appTypeType","*");
 aa.env.setValue("appSubtype","*");
-aa.env.setValue("appCategory","License");
-aa.env.setValue("expirationStatus","Active");
+aa.env.setValue("appCategory","*");
+aa.env.setValue("expirationStatus","About to Expire");
 aa.env.setValue("newExpirationStatus","About to Expire");
-aa.env.setValue("newApplicationStatus","About to Expire");
+aa.env.setValue("newApplicationStatus","Delinquent");
 aa.env.setValue("gracePeriodDays","0");
-aa.env.setValue("setPrefix","");
+aa.env.setValue("setPrefix","EXP");
 aa.env.setValue("inspSched","");
 aa.env.setValue("skipAppStatus","Void,Withdrawn,Inactive");
-aa.env.setValue("emailAddress","dhoops@accela.com");
+aa.env.setValue("emailAddress","orlando@esilverliningsolutions.com");
 aa.env.setValue("sendEmailToContactTypes","");
 aa.env.setValue("emailTemplate","");
-aa.env.setValue("deactivateLicense","N");
-aa.env.setValue("lockParentLicense","N");
-aa.env.setValue("createTempRenewalRecord","Y");
+aa.env.setValue("deactivateLicense","");
+aa.env.setValue("lockParentLicense","");
+aa.env.setValue("createTempRenewalRecord","");
 aa.env.setValue("feeSched","");
 aa.env.setValue("feeList","");
 aa.env.setValue("feePeriod","");
+aa.env.setValue("skipAppSubtype","Out of Area Contractor");
 */
 /*------------------------------------------------------------------------------------------------------/
-| Program: BATCH_ABOUT_TO_EXPIRE_LICENSE.js  Trigger: Batch
+| Program: License Expirations.js  Trigger: Batch
 | Client:
 |
 | Version 1.0 - Base Version. 11/01/08 JHS
 | Version 2.0 - Updated for Masters Scripts 2.0  02/13/14 JHS
-| Version 2.1 - Updated function addRenewalFees to include fees for Out of Area Contractor record type. 
+| Version 2.1 - Updated to Filter out (Not include) record Type: Licenses/Business/Out of Area Contractor/License (Lines 205 & 288)
 |
 /------------------------------------------------------------------------------------------------------*/
 /*------------------------------------------------------------------------------------------------------/
@@ -41,7 +103,6 @@ aa.env.setValue("feePeriod","");
 emailText = "";
 message = "";
 br = "<br>";
-useAppSpecificGroupName = false;
 /*------------------------------------------------------------------------------------------------------/
 | BEGIN Includes
 /------------------------------------------------------------------------------------------------------*/
@@ -50,6 +111,7 @@ SCRIPT_VERSION = 2.0;
 eval(getScriptText("INCLUDES_ACCELA_FUNCTIONS"));
 eval(getScriptText("INCLUDES_BATCH"));
 eval(getScriptText("INCLUDES_CUSTOM"));
+
 
 function getScriptText(vScriptName) {
 	vScriptName = vScriptName.toUpperCase();
@@ -108,19 +170,23 @@ var deactivateLicense = getParam("deactivateLicense"); // deactivate the LP
 var lockParentLicense = getParam("lockParentLicense"); // add this lock on the parent license
 var createRenewalRecord = getParam("createTempRenewalRecord"); // create a temporary record
 var feeSched = getParam("feeSched"); //
-var feeList = getParam("feeList"); // comma delimted list of fees to add
+var feeList = getParam("feeList"); // comma delimited list of fees to add
 var feePeriod = getParam("feePeriod"); // fee period to use {LICENSE}
+var skipAppSubtype = getParam("skipAppSubtype"); //   app subtype to process {NA}
 /*----------------------------------------------------------------------------------------------------/
 |
 | End: BATCH PARAMETERS
 |
 /------------------------------------------------------------------------------------------------------*/
 var startDate = new Date();
+
 if (!fromDate.length) { // no "from" date, assume today 
+	//fromDate = dateAdd(null, 0);
 	fromDate = dateAdd(null, parseInt(lookAheadDays))
 }
-if (!toDate.length) { // no "to" date, assume today + number of look ahead days + span
-	toDate = dateAdd(null, parseInt(lookAheadDays) + parseInt(daySpan));
+if (!toDate.length) { // no "to" date, assume today 
+	//toDate = fromDate;
+	toDate = dateAdd(null, parseInt(lookAheadDays) + parseInt(daySpan))
 }
 var mailFrom = lookup("ACA_EMAIL_TO_AND_FROM_SETTING", "RENEW_LICENSE_AUTO_ISSUANCE_MAILFROM");
 var acaSite = lookup("ACA_CONFIGS", "ACA_SITE");
@@ -136,7 +202,7 @@ appTypeType = appTypeType == "" ? "*" : appTypeType;
 appSubtype = appSubtype == "" ? "*" : appSubtype;
 appCategory = appCategory == "" ? "*" : appCategory;
 var appType = appGroup + "/" + appTypeType + "/" + appSubtype + "/" + appCategory;
-
+var skipAppType = appGroup + "/" + appTypeType + "/" + skipAppSubtype + "/" + appCategory;       
 /*------------------------------------------------------------------------------------------------------/
 | <===========Main=Loop================>
 |
@@ -219,7 +285,7 @@ function mainProcess() {
 		appTypeArray = appTypeString.split("/");
 
 		// Filter by CAP Type
-		if (appType.length && !appMatch(appType)) {
+		if (appType.length && (!appMatch(appType) || appMatch(skipAppType))) {
 			capFilterType++;
 			logDebug(altId + ": Application Type does not match")
 			continue;
@@ -275,7 +341,7 @@ function mainProcess() {
 		// update expiration status
 
 
-		if (newExpStatus.length > 0) {
+		if (newExpStatus.length > 0 && b1Status != newExpStatus) {  
 			b1Exp.setExpStatus(newExpStatus);
 			aa.expiration.editB1Expiration(b1Exp.getB1Expiration());
 			logDebug(altId + ": Update expiration status: " + newExpStatus);
@@ -354,6 +420,9 @@ function mainProcess() {
 
 		if (lockParentLicense && lockParentLicense.substring(0, 1).toUpperCase().equals("Y")) {
 			licCap = getLicenseCapId("*/*/*/*");
+//			if (lockParentLicense != "") {
+//				licCap = getLicenseCapId("*/*/*/*");
+
 			if (licCap) {
 				logDebug(licCap + ": adding Lock : " + lockParentLicense);
 				addStdCondition("Suspension", lockParentLicense, licCap);
@@ -362,6 +431,7 @@ function mainProcess() {
 		}
 
 		// create renewal record and add fees
+
 		if (createRenewalRecord && createRenewalRecord.substring(0, 1).toUpperCase().equals("Y")) {
 			createResult = aa.cap.createRenewalRecord(capId);
 
@@ -369,7 +439,6 @@ function mainProcess() {
 				logDebug("Could not create renewal record : " + createResult.getErrorMessage());
 			} else {
 				renewalCapId = createResult.getOutput();
-				aa.print(renewalCapId);
 
 				renewalCap = aa.cap.getCap(renewalCapId).getOutput();
 				if (renewalCap.isCompleteCap()) {
@@ -379,14 +448,9 @@ function mainProcess() {
 
 					// add fees
 
-					//if (feeList.length > 0) {
-					//	for (var fe in feeList.split(","))
-					//		var feObj = addFee(feeList.split(",")[fe], feeSched, feePeriod, 1, "Y", renewalCapId);
-					//}
-					
-					// add renewal fees for lancaster
-					if (renewalCapId) {
-						addRenewalFees(appTypeArray[2], capId, renewalCapId);
+					if (feeList.length > 0) {
+						for (var fe in feeList.split(","))
+							var feObj = addFee(feeList.split(",")[fe], feeSched, feePeriod, 1, "Y", renewalCapId);
 					}
 				}
 			}
@@ -399,120 +463,3 @@ function mainProcess() {
 	logDebug("Ignored due to Deactivated CAP: " + capDeactivated);
 	logDebug("Total CAPS processed: " + capCount);
 }
-
-function addRenewalFees(licType, licCapId, renewalCapId) { 
-	removeAllFees(renewalCapId);
-	var feeSchedule = aa.finance.getFeeScheduleByCapID(renewalCapId).getOutput();
-	
-	baseFees = new Array();
-	baseFees["Taxi Owner"] = "TXIB030";
-	baseFees["Vehicle For Hire Owner"] = "TXIB030";
-	baseFees["Tow Owner"] = "TOWBR030";
-	baseFees["Rental Housing"] = "RNTH050";
-
-	licenseFees = new Array();
-	licenseFees["General"] = "GENR010";		// qty is ASI "# of People Working in Lancaster"
-	licenseFees["Alcohol"] = "GENR010";		// qty is ASI "# of People Working in Lancaster"
-	licenseFees["Internet Lounge"] = "GENR010";		// qty is ASI "# of People Working in Lancaster"
-	licenseFees["Newsrack"] = "GENR010";		// qty is ASI "# of People Working in Lancaster"
-	licenseFees["Street Performer"] = "GENR010";		// qty is ASI "# of People Working in Lancaster"
-	licenseFees["Bingo"] = "BNGOR020";
-	licenseFees["Fortune Teller"] = "FRTLR020";
-	licenseFees["Group Home"] = "GHR020";
-	licenseFees["Massage Business Permit"] = "MSGOR020";
-	licenseFees["Massage Technician Permit"] = "MSGTR020"
-	licenseFees["Pawn Shop - Second Hand Dealer"] = "PWNR010";
-	licenseFees["Rental Housing"] = "RNTHR010";	
-	licenseFees["Salon Rental"] = "SRNTLR010";	// uses fee indicator
-	licenseFees["Taxi Driver"] = "TAXTOWDR020";
-	licenseFees["Vehicle For Hire Driver"] = "TAXTOWDR020";
-	licenseFees["Tow Driver"] = "TAXTOWDR020";
-	licenseFees["Taxi Owner"] = "TXIBR020";		// qty is ASI "Number of Vehicles
-	licenseFees["Vehicle For Hire Operator"] = "TXIB030";		// qty is ASI "Number of Vehicles
-	licenseFees["Tobacco Retailer"] = "TOBCOR010";
-	licenseFees["Tow Owner"] = "TOWBR020";
-	licenseFees["Out of Area Contractor"] = "GENR010"; 		// qty is ASI "# of People Working in Lancaster" 
-
-	processingFees = new Array();
-	processingFees["General"] = "GENR020";
-	processingFees["Alcohol"] = "GENR020";
-	processingFees["Internet Lounge"] = "GENR020";
-	processingFees["Newsrack"] = "GENR020";
-	processingFees["Street Performer"] = "GEN020";
-	processingFees["Fortune Teller"] = "FRTL030";
-	processingFees["Pawn Shop - Second Hand Dealer"] = "PWN030"
-	processingFees["Tobacco Retailer"] = "TOBCO011";
-	processingFees["Salon Rental"] = "SRNTLR020"
-	processingFees["Out of Area Contractor"] = "GENR020";
-
-	SBFees = new Array();
-	SBFees["General"] = "GENR030";
-	SBFees["Alcohol"] = "GENR030";
-	SBFees["Internet Lounge"] = "GENR030";
-	SBFees["Newsrack"] = "GENR030";
-	SBFees["Street Performer"] = "GENR030";
-	SBFees["Bingo"] = "BNGOR010";
-	SBFees["Fortune Teller"] = "FRTLR010";
-	SBFees["Group Home"] = "GHR010";
-	SBFees["Massage Business Permit"] = "MSGOR010";
-	SBFees["Massage Technician Permit"] = "MSGTR010";
-	SBFees["Pawn Shop - Second Hand Dealer"] = "PWNR020";
-	SBFees["Rental Housing"] = "RNTHR020";
-	SBFees["Salon Rental"] = "SRNTLR030";
-	SBFees["Taxi Driver"] = "TAXTOWDR010";
-	SBFees["Vehicle For Hire Driver"] = "TAXTOWDR010";
-	SBFees["Tow Driver"] = "TAXTOWDR010";
-	SBFees["Taxi Owner"] = "TXIBR010";
-	SBFees["Vehicle For Hire Operator"] = "TXIBR010";
-	SBFees["Tobacco Retailer"] = "TOBCOR020";
-	SBFees["Tow Owner"] = "TOWBR010";
-	SBFees["Out of Area Contractor"] = "GENR030";
-
-	
-	nonProfit = false;
-	if (licType == "General" && getAppSpecific("Business Ownership Type", licCapId) == "Non-Profit") nonProfit = true;
-	if (licType == "Group Home" && getAppSpecific("Is the Group Home licensed by the State of California?", licCapId) == "Yes") nonProfit = true;
-
-	// add instance of license fee, process fee and SB1186 fee
-
-	if (matches(licType, "General", "Group Home", "Out of Area Contractor")) {
-		if (!nonProfit)  { 
-			addFeeOnRenewalFromASIOnLicense("# of People Working in Lancaster",licenseFees[licType], renewalCapId, licCapId);
-			if (processingFees[licType]) addFee(processingFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
-		}
-	}
-	else {
-		if (matches(licType, "Alcohol", "Internet Lounge",  "Street Performer")) {
-			addFeeOnRenewalFromASIOnLicense("# of People Working in Lancaster",licenseFees[licType], renewalCapId, licCapId);	
-		}
-		else {
-			if (matches(licType, "Taxi Owner", "Vehicle for Hire Owner")) addFeeOnRenewalFromASIOnLicense("Number of Vehicles (Fee Associated)",licenseFees[licType], renewalCapId, licCapId)
-			else {
-				if (licType == "Tow Owner") addFeeOnRenewalFromASIOnLicense("Number of Vehicles Operating in Lancaster",licenseFees[licType], renewalCapId, licCapId);
-				else addFee(licenseFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
-			}
-		}
-		if (processingFees[licType]) addFee(processingFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId);
-	}
-	if (SBFees[licType]) addFee(SBFees[licType], feeSchedule, "FINAL", 1, "N", renewalCapId); 
-
-}
-
-
-function addFeeOnRenewalFromASIOnLicense(ASIField, FeeCode, renewalCapId, licenseCapId) {
-	var tmpASIQty = parseFloat("0" + getAppSpecific(ASIField, licenseCapId))
-	if (tmpASIQty ==0) tmpASIQty = 1;
-	var FeeSchedule = aa.finance.getFeeScheduleByCapID(renewalCapId).getOutput()
-	logDebug("addeFeeFromASI Function: ASI Field = " + ASIField + "; Fee Code = " + FeeCode + "; Fee Schedule: " + FeeSchedule);
-
-	if (arguments.length == 3) FeeSchedule = arguments[2];	// Fee Scheulde for Fee Code
-	
-	//Check to see if the ASI Field has a value. If so, then check to see if the fee exists.
-	if (tmpASIQty >= 0) {
-		logDebug("ASI Field: " + ASIField + " was found and has a positive value or zero. Attempting to add fee information.");
-		addFee(FeeCode,FeeSchedule,"FINAL",tmpASIQty,"N", renewalCapId);
-	}
-}
-
-
-
