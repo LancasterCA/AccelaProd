@@ -1,4 +1,5 @@
-// 09/30/2018 cleared bug adding to Primary ASI values on renewal
+// 10/18/2018: Added relatePublicUserToLicense function 
+// 09/30/2018: cleared bug adding to Primary ASI values on renewal
 
 // 09/27/2018: The following 4 functions where copied out of workflowtaskupdateafter4renew
 // the wtua4renew script does not appear to be copying contacts correctly as of 09.27.2018 so we are creating our own patch
@@ -3252,3 +3253,41 @@ function getParentCapIDForRenewNoStatus_SLS(capid)
     }
 }
 
+function relatePublicUserToLicense()
+{
+	var pPINNum = "" + getAppSpecific("Pin Number");
+	var id1 = pPINNum.substr(0,5);
+	var id3 = pPINNum.substr(5,5);
+	var pContactNum = pPINNum.substr(11);
+	var refNum = null;
+	var pContactType = "Business Owner";
+
+	logDebug("id1:"+id1);
+	logDebug("id3:"+id3);
+	logDebug("pContactNum:"+pContactNum);
+
+
+	var parentCapId = aa.cap.getCapID(id1, "00000", id3).getOutput();
+
+	if (publicUser) {
+		puserSeq = aa.publicUser.getPublicUserByPUser(publicUserID).getOutput().getUserSeqNum();
+
+		var capContactResult = aa.people.getCapContactByCapID(parentCapId);
+
+		var capContactArray = [];
+		if (capContactResult.getSuccess()) {
+			capContactArray = capContactResult.getOutput();
+		}
+
+		if (capContactArray) {
+			for (yy in capContactArray) {
+				var nPeople = capContactArray[yy].getPeople();
+				var nPeopleConSeqNum = nPeople.getContactSeqNumber();
+				var nPeopleType = nPeople.getContactType();
+				if ( nPeopleConSeqNum == pContactNum && nPeopleType == pContactType ) {
+					aa.licenseScript.associateContactWithPublicUser(puserSeq, nPeopleConSeqNum);
+				}
+			}
+		}
+	} 
+}
