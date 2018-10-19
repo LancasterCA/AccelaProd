@@ -3263,7 +3263,7 @@ function relatePublicUsertoLicense()
 	var pContactType = "Business Owner";
 	var myMessage = "";
 
-	myMessage = "<BR>" + "id1:"+id1";
+	myMessage = "<BR>" + "id1:"+id1;
 	myMessage = "<BR>" + "id3:"+id3;
 	myMessage = "<BR>" + "pContactNum:"+pContactNum;
 	myMessage = "<BR>" + "the public users is:"+publicUser;
