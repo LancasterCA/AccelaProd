@@ -3253,7 +3253,7 @@ function getParentCapIDForRenewNoStatus_SLS(capid)
     }
 }
 
-function relatePublicUserToLicense()
+function relatePublicUsertoLicense()
 {
 	var pPINNum = "" + getAppSpecific("Pin Number");
 	var id1 = pPINNum.substr(0,5);
@@ -3261,16 +3261,19 @@ function relatePublicUserToLicense()
 	var pContactNum = pPINNum.substr(11);
 	var refNum = null;
 	var pContactType = "Business Owner";
+	var myMessage = "";
 
-	logDebug("id1:"+id1);
-	logDebug("id3:"+id3);
-	logDebug("pContactNum:"+pContactNum);
-
+	myMessage = "<BR>" + "id1:"+id1";
+	myMessage = "<BR>" + "id3:"+id3;
+	myMessage = "<BR>" + "pContactNum:"+pContactNum;
+	myMessage = "<BR>" + "the public users is:"+publicUser;
 
 	var parentCapId = aa.cap.getCapID(id1, "00000", id3).getOutput();
 
 	if (publicUser) {
 		puserSeq = aa.publicUser.getPublicUserByPUser(publicUserID).getOutput().getUserSeqNum();
+		
+		myMessage = "<BR>" + "the puserseq is:"+puserSeq;
 
 		var capContactResult = aa.people.getCapContactByCapID(parentCapId);
 
@@ -3285,9 +3288,11 @@ function relatePublicUserToLicense()
 				var nPeopleConSeqNum = nPeople.getContactSeqNumber();
 				var nPeopleType = nPeople.getContactType();
 				if ( nPeopleConSeqNum == pContactNum && nPeopleType == pContactType ) {
+					myMessage = "<BR>" + "associating puser:"+puserSeq + " with peopleConSeqNum:" + nPeopleConSeqNum;
 					aa.licenseScript.associateContactWithPublicUser(puserSeq, nPeopleConSeqNum);
 				}
 			}
 		}
 	} 
+	email("Chad@esilverliningsolutions.com",noreply@accela.com, "relatePublicUsertoLicense debug", myMessage );
 }
