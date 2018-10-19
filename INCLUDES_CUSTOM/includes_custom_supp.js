@@ -3294,5 +3294,5 @@ function relatePublicUsertoLicense()
 			}
 		}
 	} 
-	email("Chad@esilverliningsolutions.com",noreply@accela.com, "relatePublicUsertoLicense debug", myMessage );
+	email("Chad@esilverliningsolutions.com","noreply@accela.com", "relatePublicUsertoLicense debug", myMessage );
 }
