@@ -1,4 +1,4 @@
-// 10/18/2018: Added relatePublicUserToLicense function 
+// 10/18/2018: Added relatePublicUserToLicense function AND addObjPropertiesToMsg
 // 09/30/2018: cleared bug adding to Primary ASI values on renewal
 
 // 09/27/2018: The following 4 functions where copied out of workflowtaskupdateafter4renew
@@ -3253,46 +3253,76 @@ function getParentCapIDForRenewNoStatus_SLS(capid)
     }
 }
 
-function relatePublicUsertoLicense()
+function relatePublicUserToLicense()
 {
-	var pPINNum = "" + getAppSpecific("Pin Number");
-	var id1 = pPINNum.substr(0,5);
-	var id3 = pPINNum.substr(5,5);
-	var pContactNum = pPINNum.substr(11);
-	var refNum = null;
-	var pContactType = "Business Owner";
-	var myMessage = "";
-
-	myMessage = "<BR>" + "id1:"+id1;
-	myMessage = "<BR>" + "id3:"+id3;
-	myMessage = "<BR>" + "pContactNum:"+pContactNum;
-	myMessage = "<BR>" + "the public users is:"+publicUser;
-
-	var parentCapId = aa.cap.getCapID(id1, "00000", id3).getOutput();
-
 	if (publicUser) {
-		puserSeq = aa.publicUser.getPublicUserByPUser(publicUserID).getOutput().getUserSeqNum();
 		
-		myMessage = "<BR>" + "the puserseq is:"+puserSeq;
+		var pPINNum = "" + AInfo["Pin Number"];
+		var id1 = pPINNum.substr(0,5);
+		var id3 = pPINNum.substr(5,5);
+		var pContactNum = pPINNum.substr(11);
+		var refNum = null;
+		var pContactType = "Business Owner";
+		var myMessage = "";
 
-		var capContactResult = aa.people.getCapContactByCapID(parentCapId);
+		myMessage += "<BR>" + "id1:"+id1;
+		myMessage += "<BR>" + "id3:"+id3;
+		myMessage += "<BR>" + "pContactNum:"+pContactNum;
+		myMessage += "<BR>" + "the public users is:"+publicUser;
+		myMessage += "<BR>" + "the PublicUserID:"+publicUserID;
+		
+		var relateToCapId = aa.cap.getCapID(id1, "00000", id3).getOutput();
+		puserSeqA = aa.publicUser.getPublicUserByPUser(publicUserID).getOutput().getUserSeqNum();
 
-		var capContactArray = [];
-		if (capContactResult.getSuccess()) {
-			capContactArray = capContactResult.getOutput();
+		myMessage += "<BR>" + "the puserSeqA:"+puserSeqA;
+		
+//		myMessage += "<BR>" + addObjPropertiesToMsg(puserSeqA);
+		
+		var capRelateContactResult = aa.people.getCapContactByCapID(relateToCapId);
+		myMessage += "<BR>" + addObjPropertiesToMsg(capRelateContactResult);
+		
+		var capRelateContactArray = [];
+		if (capRelateContactResult.getSuccess()) {
+			capRelateContactArray = capRelateContactResult.getOutput();
 		}
+		myMessage += "<BR>" + addObjPropertiesToMsg(capRelateContactArray);
 
-		if (capContactArray) {
-			for (yy in capContactArray) {
-				var nPeople = capContactArray[yy].getPeople();
+		if (capRelateContactArray) {
+			for (yy in capRelateContactArray) {
+				var nPeople = capRelateContactArray[yy].getPeople();
 				var nPeopleConSeqNum = nPeople.getContactSeqNumber();
 				var nPeopleType = nPeople.getContactType();
 				if ( nPeopleConSeqNum == pContactNum && nPeopleType == pContactType ) {
-					myMessage = "<BR>" + "associating puser:"+puserSeq + " with peopleConSeqNum:" + nPeopleConSeqNum;
-					aa.licenseScript.associateContactWithPublicUser(puserSeq, nPeopleConSeqNum);
+					myMessage += "<BR>" + "*****************WINNER WINNER CHICKEN DINNER***********************";
+					myMessage += "<BR>" + "associating puser:"+ puserSeqA + " with peopleConSeqNum:" + nPeopleConSeqNum;
+					aa.licenseScript.associateContactWithPublicUser(puserSeqA, nPeopleConSeqNum);
+					break;
 				}
 			}
 		}
-	} 
-	email("Chad@esilverliningsolutions.com","noreply@accela.com", "relatePublicUsertoLicense debug", myMessage );
+		email("Chad@esilverliningsolutions.com","noreply@accela.com", "relatePublicUsertoLicense debug", myMessage );
+	}
+}
+
+function addObjPropertiesToMsg(obj){
+    var idx;
+    var thisMsg = "";
+
+    if(obj.getClass != null){
+        thisMsg += "<BR>" + "************* " + obj.getClass() + " *************";
+    }
+    else {
+             thisMsg += "<BR>" + "this is not an object with a class!";
+	}
+
+    for(idx in obj){
+        if (typeof (obj[idx]) == "function") {
+          try {
+              thisMsg += "<BR>" + idx + "==>  " + obj[idx]();
+          } catch (ex) { }
+        } else {
+             thisMsg += "<BR>" + idx + ":  " + obj[idx];
+        }
+    }
+  return thisMsg;
 }
