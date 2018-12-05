@@ -1,0 +1,209 @@
+//******* Testing *******
+/*
+aa.env.setValue("appGroup","Licenses");
+aa.env.setValue("appTypeType","Business")
+aa.env.setValue("appSubtype","General");
+aa.env.setValue("appCategory","Application")
+aa.env.setValue("appStatus","Appeal Period");
+aa.env.setValue("emailAddress","orlando@esilverliningsolutions.com")
+*/
+/*------------------------------------------------------------------------------------------------------/
+| Program: BATCH_BL_CLOSE_APPEAL_PERIOD.js  Trigger: Batch
+| Client: Lancaster
+|
+| Frequency: Nightly
+|
+| Desc: This batch script runs daily to update the record status and workflow of all Licenses with the status of "Appeal Period" 
+|		that have exceeded the 10 day Appeal timeline today.
+|
+/------------------------------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------------/
+|
+| START: USER CONFIGURABLE PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+emailText = "";
+message = "";
+br = "<br>";
+maxSeconds = 180 * 60;
+/*------------------------------------------------------------------------------------------------------/
+| BEGIN Includes
+/------------------------------------------------------------------------------------------------------*/
+SCRIPT_VERSION = 2.0;
+
+eval(getScriptText("INCLUDES_ACCELA_FUNCTIONS"));
+eval(getScriptText("INCLUDES_BATCH"));
+eval(getScriptText("INCLUDES_CUSTOM"));
+
+function getScriptText(vScriptName){
+	vScriptName = vScriptName.toUpperCase();
+	var emseBiz = aa.proxyInvoker.newInstance("com.accela.aa.emse.emse.EMSEBusiness").getOutput();
+	var emseScript = emseBiz.getScriptByPK(aa.getServiceProviderCode(),vScriptName,"ADMIN");
+	return emseScript.getScriptText() + "";
+}
+
+
+
+/*------------------------------------------------------------------------------------------------------/
+|
+| END: USER CONFIGURABLE PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+showDebug = true;
+if (String(aa.env.getValue("showDebug")).length > 0) {
+	showDebug = aa.env.getValue("showDebug").substring(0, 1).toUpperCase().equals("Y");
+}  //aa.env.getValue("showDebug").substring(0,1).toUpperCase().equals("Y");
+sysDate = aa.date.getCurrentDate();
+batchJobResult = aa.batchJob.getJobID();
+batchJobName = "" + aa.env.getValue("BatchJobName");
+
+batchJobID = 0;
+if (batchJobResult.getSuccess()) {
+	batchJobID = batchJobResult.getOutput();
+	logDebug("Batch Job " + batchJobName + " Job ID is " + batchJobID);
+}
+else
+	logDebug("Batch job ID not found " + batchJobResult.getErrorMessage());
+
+/*------------------------------------------------------------------------------------------------------/
+|
+| Start: BATCH PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+
+var appGroup = getParam("appGroup");							//   app Group to process {Permits}
+var appTypeType = getParam("appTypeType");						//   app type to process {NA}
+var appSubtype = getParam("appSubtype");						//   app subtype to process {NA}
+var appCategory = getParam("appCategory");						//   app category to process {NA}
+var appStatus = getParam("appStatus");
+var emailAddress = getParam("emailAddress");					// email to send report
+var sendEmailToContactTypes = getParam("sendEmailToContactTypes");// send out emails?
+var emailTemplate = getParam("emailTemplate");					// email Template
+
+/*------------------------------------------------------------------------------------------------------/
+|
+| End: BATCH PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+var startDate = new Date();
+var timeExpired = false;
+
+var startTime = startDate.getTime();			// Start timer
+var systemUserObj = aa.person.getUser("ADMIN").getOutput();
+
+if (appGroup=="")	appGroup="*";
+if (appTypeType=="")	appTypeType="*";
+if (appSubtype=="")	appSubtype="*";
+if (appCategory=="")	appCategory="*";
+var appType = appGroup+"/"+appTypeType+"/"+appSubtype+"/"+appCategory;
+
+/*-----------------------------------------------------------------------------------------------------/
+| <===========Main=Loop================>
+/-----------------------------------------------------------------------------------------------------*/
+
+logDebug("Start of Job");
+
+if (!timeExpired) mainProcess();
+
+logDebug("End of Job: Elapsed Time : " + elapsed() + " Seconds");
+
+if (emailAddress.length)
+	aa.sendMail("noreply@accela.com", emailAddress, "", batchJobName + " Results", emailText);
+
+/*-----------------------------------------------------------------------------------------------------/
+| <===========END=Main=Loop================>
+/-----------------------------------------------------------------------------------------------------*/
+function printObjProperties(obj){
+    var idx;
+
+    if(obj.getClass != null){
+        aa.print("************* " + obj.getClass() + " *************");
+    }
+	else {
+		aa.print("this is not an object with a class!");
+	}
+
+   for(idx in obj){
+//		aa.print(" IDX is:  " + idx);
+        if (typeof (obj[idx]) == "function") {
+            try {
+                aa.print(idx + "==>  " + obj[idx]());
+            } catch (ex) { }
+        } else {
+            aa.print(idx + ":  " + obj[idx]);
+        }
+   }	
+}
+
+function mainProcess() {
+	var appealCount = 0
+	var today = new Date();
+	today.setHours(0); today.setMinutes(0); today.setSeconds(0); today.setMilliseconds(0)
+	logDebug("today's Date: "+today);
+	
+	var capModelResult = aa.cap.getCapModel();
+	if (capModelResult.getSuccess()) {
+		var capModel = capModelResult.getOutput();
+		capModel.setCapStatus(appStatus);
+		var capTypeModel = capModel.getCapType();
+		if (appGroup != "*") capTypeModel.setGroup(appGroup);
+		if (appTypeType != "*") capTypeModel.setType(appTypeType);
+		if (appSubtype != "*") capTypeModel.setSubType(appSubtype);
+		if (appCategory != "*") capTypeModel.setCategory(appCategory);
+		capModel.setCapType(capTypeModel);
+		capResult = aa.cap.getCapIDListByCapModel(capModel);
+	}
+	if (capResult.getSuccess()) {
+		recList = capResult.getOutput();
+		logDebug("Processing " + recList.length + " License(s)")
+	}
+	else { 
+		logDebug("ERROR: Getting records, reason is: " + capResult.getErrorMessage()) ;
+		return false
+	} 
+
+	for (i in recList)  {
+		if (elapsed() > maxSeconds) {
+			// only continue if time hasn't expired
+			logDebug("A script time-out has caused partial completion of this process.  Please re-run.  " + elapsed() + " seconds elapsed, " + maxSeconds + " allowed.") ;
+			timeExpired = true ;
+			break;
+		}
+		thisRec =recList[i]
+		capId = thisRec.getCapID();
+		altId = null;
+		thisCap = aa.cap.getCap(capId)
+		
+		if(thisCap.getSuccess()){
+			altId = thisCap.getOutput().getCapModel().getAltID();
+			logDebug("******Cap ID: "+altId+"******");
+			
+			var thisCapModel = thisCap.getOutput().getCapModel();							
+			//printObjProperties(thisCapModel);
+			var capStatDate = thisCapModel.getCapStatusDate();								
+			logDebug("Cap Status Date: "+capStatDate);
+			
+
+			if (isTaskActive("Appeal Period")==true){
+				logDebug("WF Task Appeal Period is Active");
+	
+				var appealDueDate = getTaskDueDate("Appeal Period");							
+				logDebug("Task Due Date: "+appealDueDate);
+
+				if (appealDueDate < today){
+					logDebug("**Appeal Period Due Date has passed.");
+					logDebug("---Record Update Actions-Start---");
+					updateAppStatus("Denied", "Updated via Batch"),
+					branchTask("Appeal Period", "Denied - No Appeal", "10 Day Appeal period has Passed, Application Closed", "Updated via Batch");
+					logDebug("---Record Update Actions-End---");
+					appealCount++
+				}else{
+					logDebug("Appeal Period has NOT passed.");
+				}				
+			}else{
+				logDebug("Appeal Period Task is not Active.");
+			}
+		}
+	}
+	if (!timeExpired) logDebug("Appeal Period Closed for " + appealCount + " record(s).")
+}
