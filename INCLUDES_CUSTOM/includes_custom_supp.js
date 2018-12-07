@@ -1,3 +1,4 @@
+// 12/7/2018: Added line 1747 to assess penalty Fees for OAC License App.
 // 10/18/2018: Added relatePublicUserToLicense function AND addObjPropertiesToMsg
 // 09/30/2018: cleared bug adding to Primary ASI values on renewal
 
@@ -1743,6 +1744,7 @@ function calculateAppPenaltyFee() {
 	licenseFees["Vehicle for Hire Owner"] = "TXIB030";		// qty is ASI "Number of Vehicles
 	licenseFees["Tobacco Retailer"] = "TOBCO030";
 	licenseFees["Tow Owner"] = "TOWB030";
+	licenseFees["Out of Area Contractor"] = "GEN010";			//added 12/7/18 for Out of City Contractor App
 	
 	renewalFees = new Array();
 	renewalFees["General"] = "BL_GEN_RENEW;GENR010";		// qty is ASI "# of People Working in Lancaster"
