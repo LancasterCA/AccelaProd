@@ -1,0 +1,1 @@
+aa.env.setValue("ScriptReturnCode","0");aa.print("New Daily Contact Start:");var contactModel = aa.env.getValue("Contact");aa.people.newContactByCapContact(contactModel);aa.print("New Daily Contact End:");aa.env.setValue("ScriptReturnMessage", "New Daily Contact successful");

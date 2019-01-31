@@ -1,0 +1,388 @@
+/*------------------------------------------------------------------------------------------------------/
+| Program: BATCH_RENEWAL_NOTIFICATION_EMAIL.js  Trigger: Batch
+| Client:
+|
+| Version 1.0 - Base Version. 11/01/08 JHS
+| Version 2.0 - Updated for Masters Scripts 2.0  02/13/14 JHS
+|
+/------------------------------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------------/
+|
+| START: USER CONFIGURABLE PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+emailText = "";
+message = "";
+br = "<br>";
+useAppSpecificGroupName = false;
+aa.env.setValue("CurrentUserID","ADMIN");
+var currentUserID = "ADMIN"
+/*------------------------------------------------------------------------------------------------------/
+| BEGIN Includes
+/------------------------------------------------------------------------------------------------------*/
+SCRIPT_VERSION = 2.0;
+
+eval(getScriptText("INCLUDES_ACCELA_FUNCTIONS"));
+eval(getScriptText("INCLUDES_BATCH"));
+eval(getScriptText("INCLUDES_CUSTOM"));
+
+function getScriptText(vScriptName) {
+	vScriptName = vScriptName.toUpperCase();
+	var emseBiz = aa.proxyInvoker.newInstance("com.accela.aa.emse.emse.EMSEBusiness").getOutput();
+	var emseScript = emseBiz.getScriptByPK(aa.getServiceProviderCode(), vScriptName, "ADMIN");
+	return emseScript.getScriptText() + "";
+}
+
+/*------------------------------------------------------------------------------------------------------/
+|
+| END: USER CONFIGURABLE PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+showDebug = true;
+if (String(aa.env.getValue("showDebug")).length > 0) {
+	showDebug = aa.env.getValue("showDebug").substring(0, 1).toUpperCase().equals("Y");
+}
+
+sysDate = aa.date.getCurrentDate();
+batchJobResult = aa.batchJob.getJobID();
+batchJobName = "" + aa.env.getValue("BatchJobName");
+batchJobID = 0;
+if (batchJobResult.getSuccess()) {
+	batchJobID = batchJobResult.getOutput();
+	logDebug("Batch Job " + batchJobName + " Job ID is " + batchJobID);
+} else {
+	logDebug("Batch job ID not found " + batchJobResult.getErrorMessage());
+}
+
+/*----------------------------------------------------------------------------------------------------/
+|
+| Start: BATCH PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+var fromDate = getParam("fromDate"); // Hardcoded dates.   Use for testing only
+var toDate = getParam("toDate"); // ""
+var dFromDate = aa.date.parseDate(fromDate); //
+var dToDate = aa.date.parseDate(toDate); //
+var lookAheadDays = aa.env.getValue("lookAheadDays"); // Number of days from today
+var daySpan = aa.env.getValue("daySpan"); // Days to search (6 if run weekly, 0 if daily, etc.)
+var appGroup = getParam("appGroup"); //   app Group to process {Licenses}
+var appTypeType = getParam("appTypeType"); //   app type to process {Rental License}
+var appSubtype = getParam("appSubtype"); //   app subtype to process {NA}
+var appCategory = getParam("appCategory"); //   app category to process {NA}
+var expStatus = getParam("expirationStatus"); //   test for this expiration status
+var newExpStatus = getParam("newExpirationStatus"); //   update to this expiration status
+var newAppStatus = getParam("newApplicationStatus"); //   update the CAP to this status
+var gracePeriodDays = getParam("gracePeriodDays"); //	bump up expiration date by this many days
+var setPrefix = getParam("setPrefix"); //   Prefix for set ID
+var inspSched = getParam("inspSched"); //   Schedule Inspection
+var skipAppStatusArray = getParam("skipAppStatus").split(","); //   Skip records with one of these application statuses
+var emailAddress = getParam("emailAddress"); // email to send report
+var sendEmailToContactTypes = getParam("sendEmailToContactTypes"); // send out emails?
+var emailTemplate = getParam("emailTemplate"); // email Template
+var deactivateLicense = getParam("deactivateLicense"); // deactivate the LP
+var lockParentLicense = getParam("lockParentLicense"); // add this lock on the parent license
+var createRenewalRecord = getParam("createTempRenewalRecord"); // create a temporary record
+var feeSched = getParam("feeSched"); //
+var feeList = getParam("feeList"); // comma delimted list of fees to add
+var feePeriod = getParam("feePeriod"); // fee period to use {LICENSE}
+/*----------------------------------------------------------------------------------------------------/
+|
+| End: BATCH PARAMETERS
+|
+/------------------------------------------------------------------------------------------------------*/
+var startDate = new Date();
+if (!fromDate.length) { // no "from" date, assume today 
+	fromDate = dateAdd(null, parseInt(lookAheadDays))
+}
+if (!toDate.length) { // no "to" date, assume today + number of look ahead days + span
+	toDate = dateAdd(null, parseInt(lookAheadDays) + parseInt(daySpan));
+}
+var mailFrom = lookup("ACA_EMAIL_TO_AND_FROM_SETTING", "RENEW_LICENSE_AUTO_ISSUANCE_MAILFROM");
+var acaSite = lookup("ACA_CONFIGS", "ACA_SITE");
+acaSite = acaSite.substr(0, acaSite.toUpperCase().indexOf("/ADMIN"));
+
+logDebug("Date Range -- fromDate: " + fromDate + ", toDate: " + toDate)
+
+var startTime = startDate.getTime(); // Start timer
+var systemUserObj = aa.person.getUser("ADMIN").getOutput();
+
+appGroup = appGroup == "" ? "*" : appGroup;
+appTypeType = appTypeType == "" ? "*" : appTypeType;
+appSubtype = appSubtype == "" ? "*" : appSubtype;
+appCategory = appCategory == "" ? "*" : appCategory;
+var appType = appGroup + "/" + appTypeType + "/" + appSubtype + "/" + appCategory;
+
+/*------------------------------------------------------------------------------------------------------/
+| <===========Main=Loop================>
+|
+/-----------------------------------------------------------------------------------------------------*/
+
+logDebug("Start of Job");
+
+try {
+	mainProcess();
+} catch (err) {
+	logDebug("ERROR: " + err.message + " In " + batchJobName + " Line " + err.lineNumber);
+	logDebug("Stack: " + err.stack);
+}
+
+logDebug("End of Job: Elapsed Time : " + elapsed() + " Seconds");
+
+if (emailAddress.length)
+	aa.sendMail("noreply@accela.com", emailAddress, "", batchJobName + " Results", emailText);
+
+/*------------------------------------------------------------------------------------------------------/
+| <===========END=Main=Loop================>
+/-----------------------------------------------------------------------------------------------------*/
+
+function mainProcess() {
+	var capFilterType = 0;
+	var capFilterInactive = 0;
+	var capFilterError = 0;
+	var capFilterStatus = 0;
+	var capDeactivated = 0;
+	var capCount = 0;
+	var inspDate;
+	var setName;
+	var setDescription;
+
+	var expResult = aa.expiration.getLicensesByDate(expStatus, fromDate, toDate);
+
+	if (expResult.getSuccess()) {
+		myExp = expResult.getOutput();
+		logDebug("Processing " + myExp.length + " expiration records");
+	} else {
+		logDebug("ERROR: Getting Expirations, reason is: " + expResult.getErrorType() + ":" + expResult.getErrorMessage());
+		return false
+	}
+
+	for (thisExp in myExp) // for each b1expiration (effectively, each license app)
+	{
+		b1Exp = myExp[thisExp];
+		var expDate = b1Exp.getExpDate();
+		if (expDate) {
+			var b1ExpDate = expDate.getMonth() + "/" + expDate.getDayOfMonth() + "/" + expDate.getYear();
+		}
+		var b1Status = b1Exp.getExpStatus();
+		var renewalCapId = null;
+//CAP ID
+		capId = aa.cap.getCapID(b1Exp.getCapID().getID1(), b1Exp.getCapID().getID2(), b1Exp.getCapID().getID3()).getOutput();
+		
+		if (!capId) {
+			logDebug("Could not get a Cap ID for " + b1Exp.getCapID().getID1() + "-" + b1Exp.getCapID().getID2() + "-" + b1Exp.getCapID().getID3());
+			continue;
+		}
+//Record #
+		altId = capId.getCustomID();
+
+		logDebug(altId + ": Renewal Status : " + b1Status + ", Expires on " + b1ExpDate);
+
+		var capResult = aa.cap.getCap(capId);
+
+		if (!capResult.getSuccess()) {
+			logDebug(altId + ": Record is deactivated, skipping");
+			capDeactivated++;
+			continue;
+		} else {
+			var cap = capResult.getOutput();
+		}
+
+		var capStatus = cap.getCapStatus();
+		
+		appTypeResult = cap.getCapType();
+		//logDebug("******************Start Printing Object Properties***");
+		//prinObjProperties(capId);
+		//prinObjProperties(altId)
+		//prinObjProperties(cap);
+		//prinObjProperties(capStatus);
+		//prinObjProperties(appTypeResult);
+		//var capTAlias = cap.getCapTypeAlias();
+		//logDebug("******************End Printing Object Properties***");
+
+		appTypeResult = cap.getCapType(); //create CapTypeModel object
+		appTypeString = appTypeResult.toString();
+		appTypeArray = appTypeString.split("/");
+		appTypeAlias = appTypeResult.getAlias();
+		logDebug("App Alias: "+appTypeAlias);
+		
+		// Filter by CAP Type
+		if (appType.length && !appMatch(appType)) {
+			capFilterType++;
+			logDebug(altId + ": Application Type does not match")
+			continue;
+		}
+
+		// Filter by CAP Status
+		if (exists(capStatus, skipAppStatusArray)) {
+			capFilterStatus++;
+			logDebug(altId + ": skipping due to application status of " + capStatus)
+			continue;
+		}
+		
+		capCount++;
+
+		//Retrieve Renewal Fees
+		var projList = aa.cap.getProjectByMasterID(capId, "Renewal", "");
+		var thisProjList = projList.getOutput();
+		//prinObjProperties(thisProjList);
+		//prinObjProperties(thisProjList[0]);
+		var thisProj = thisProjList[0];
+
+		var renewalCapId = thisProj.getCapID();
+		logDebug("Renewal CapId: "+renewalCapId);
+
+		var renewalFeeList= aa.finance.getFeeItemByCapID(renewalCapId).getOutput();
+		//logDebug("**Renewal Fee List: "+renewalFeeList);
+		//prinObjProperties(renewalFeeList[0]);
+
+		var totalFeeAmount = 0; 
+		for (f in renewalFeeList) {
+			//logDebug("*********F: "+f);
+			var thisFeeCode = renewalFeeList[f].getFeeCod();
+			var thisFeeDisc = renewalFeeList[f].getFeeDescription();
+			var thisFeeAmt = renewalFeeList[f].getFee();
+			//logDebug("**Fee Code: "+thisFeeCode);
+			//logDebug("**Fee Description: "+thisFeeDisc);
+			//logDebug("**Fee Amount: "+thisFeeAmt);
+			
+			totalFeeAmount += thisFeeAmt;
+		}	
+		logDebug("Total Fee Amount: "+totalFeeAmount);		
+		
+		// Actions start here:
+
+		if (sendEmailToContactTypes.length > 0 && emailTemplate.length > 0) {
+
+			var conTypeArray = sendEmailToContactTypes.split(",");
+			var conArray = getContactArray(capId);
+
+			logDebug("Have the contactArray");
+
+			for (thisCon in conArray) {
+				conEmail = null;
+				b3Contact = conArray[thisCon];
+				//prinObjProperties(b3Contact);				//Added to print Contact Object properties
+				
+				if (exists(b3Contact["contactType"], conTypeArray)) {
+					conEmail = b3Contact["email"];
+					conSeqNbr = b3Contact["contactSeqNumber"];
+				}
+
+				capIdStr = capId.toString();	
+				
+				if (conEmail) {
+					emailParameters = aa.util.newHashtable();
+					addParameter(emailParameters, "$$capID$$", altId);
+					addParameter(emailParameters, "$$pinNumber$$", conSeqNbr);
+					addParameter(emailParameters, "$$capType$$", appTypeAlias);
+					addParameter(emailParameters, "$$feeAmount$$", totalFeeAmount);
+					addParameter(emailParameters, "$$acaUrl$$", acaSite + getACAUrl());
+					addParameter(emailParameters, "$$businessName$$", cap.getSpecialText());
+					addParameter(emailParameters, "$$expirationDate$$", b1ExpDate);
+
+					var capId4Email = aa.cap.createCapIDScriptModel(capId.getID1(), capId.getID2(), capId.getID3());
+
+					var fileNames = [];
+
+					aa.document.sendEmailAndSaveAsDocument(mailFrom, conEmail, "", emailTemplate, emailParameters, capId4Email, fileNames);
+					logDebug(altId + ": Sent Email template " + emailTemplate + " to " + b3Contact["contactType"] + " : " + conEmail);
+				}
+			}
+		}
+	} 
+	logDebug("Total CAPS qualified date range: " + myExp.length);
+	logDebug("Ignored due to application type: " + capFilterType);
+	logDebug("Ignored due to CAP Status: " + capFilterStatus);
+	logDebug("Ignored due to Deactivated CAP: " + capDeactivated);
+	logDebug("Total CAPS processed: " + capCount);
+}
+
+function prinObjProperties(obj){
+    var idx;
+
+    if(obj.getClass != null){
+        aa.print("************* " + obj.getClass() + " *************");
+    }
+	else {
+		aa.print("this is not an object with a class!");
+	}
+
+    for(idx in obj){
+//		aa.print(" IDX is:  " + idx);
+        if (typeof (obj[idx]) == "function") {
+            try {
+                aa.print(idx + "==>  " + obj[idx]());
+            } catch (ex) { }
+        } else {
+            aa.print(idx + ":  " + obj[idx]);
+        }
+   }	
+}
+
+// ********************************* adding new from applicatonsubmitafter4renew ******
+
+function getParentLicenseForRenewal(capId)
+{
+	var relatedCapsResult = aa.cap.getProjectByChildCapID(capId, "Renewal", "");
+	logDebug(relatedCapsResult);
+	if (relatedCapsResult.getSuccess())
+		{
+			parentArray = relatedCapsResult.getOutput();
+			
+			if (parentArray.length)
+			{
+				var licenseCapId;
+				for (project in parentArray)
+				{
+					logDebug(parentArray[project]);
+					var curProject = parentArray[project];
+					licenseCapId = curProject.getProjectID();
+					return licenseCapId;
+				}
+			}
+			else
+			{
+				logDebug( "**WARNING: GetParent found no parent license for this renewal");
+				return false;
+			}
+		}
+		else
+		{ 
+			logDebug( "**WARNING: getting parent license:  " + relatedCapsResult.getErrorMessage());
+			return false;
+		}
+}
+
+function editLookup(stdChoice,stdValue,stdDesc) 
+	{
+	//check if stdChoice and stdValue already exist; if they do, update;
+	var bizDomScriptResult = aa.bizDomain.getBizDomainByValue(stdChoice,stdValue);
+	if (bizDomScriptResult.getSuccess())
+		{
+		bds = bizDomScriptResult.getOutput();
+		}
+	else
+		{
+		logDebug("Std Choice(" + stdChoice + "," + stdValue + ") does not exist to edit, adding...");
+		addLookup(stdChoice,stdValue,stdDesc);
+		return false;
+		}
+	var bd = bds.getBizDomain()
+		
+	bd.setDescription(stdDesc);
+	var editResult = aa.bizDomain.editBizDomain(bd)
+	
+	if (editResult.getSuccess())
+		logDebug("Successfully edited Std Choice(" + stdChoice + "," + stdValue + ") = " + stdDesc);
+	else
+		logDebug("**ERROR editing Std Choice " + editResult.getErrorMessage());
+	}
+
+
+function logDebug(dstr) {
+	aa.debug("APPSUBMITAFTER4RENEW" + aa.getServiceProviderCode() + " : " + aa.env.getValue("CurrentUserID"), dstr);
+}
+
+
+
+ 
