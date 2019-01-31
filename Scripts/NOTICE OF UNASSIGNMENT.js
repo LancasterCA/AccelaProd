@@ -1,0 +1,1 @@
+Dear $$proctorName$$,This is to notify that you are no longer requested to proctor the following examination session:Examination: $$examName$$Provider: $$providerName$$Date and Time: $$startTime$$ ~ $$endTime$$Location: $$examSite$$ $$serviceProviderCode$$

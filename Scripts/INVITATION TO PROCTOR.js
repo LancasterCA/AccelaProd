@@ -1,0 +1,1 @@
+Dear $$proctorName$$,Your participation has been requested by the State Board to proctor the following examination:Examination: $$examName$$Provider: $$providerName$$Date and time: $$startTime$$ ~ $$endTime$$Location: $$examSite$$Please feedback if you will accept or reject this request:AcceptRejectThank you,$$serviceProviderCode$$

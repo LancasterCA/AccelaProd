@@ -1,0 +1,1 @@
+//Sample Script: Delete the CAP from B1Permit table.id1 = "12WST";id2 = "00000";id3 = "00044";var capIDModel = aa.cap.getCapIDModel(id1,id2,id3).getOutput();var removeScript = aa.cap.removeRecord(capIDModel);if (removeScript.getSuccess()){ aa.print("Remove Record successfully");}else{ aa.print("Failed to remove Record");}
