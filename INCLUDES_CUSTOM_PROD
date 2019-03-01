@@ -1,3 +1,4 @@
+// 2/28/2019: added function sendDocUploadEmailToReviewer()
 // 2/14/2019: Added functions createRefContactsFromCapContactsAndLink_SLS() and comparePeopleGeneric_SLS() for Lic Ref Contact linking
 // 12/7/2018: Added line 1747 to assess penalty Fees for OAC License App.
 // 10/18/2018: Added relatePublicUserToLicense function 
@@ -9830,6 +9831,60 @@ function relatePublicUserToLicense()
 //		email("Chad@esilverliningsolutions.com","noreply@accela.com", "relatePublicUsertoLicense debug", myMessage );
 	}
 }
+
+function sendDocUploadEmailToReviewer() {
+
+    aa.print("function sendDocUploadEmailToReviewer - Begin");
+    var recAltId = aa.cap.getCap(capId).getOutput().getCapID().getCustomID(); 
+    var wfUserEmail = null;
+    var useProcess = false;
+    var processName = "";
+    if (arguments.length == 2) {
+        processName = arguments[1]; // subprocess
+        useProcess = true;
+    }
+							
+	var aWfHist = aa.workflow.getHistory(capId);
+	if (aWfHist.getSuccess()) {
+        var aTaskHist = aWfHist.getOutput(); 
+    }
+    else {
+        aa.print("**ERROR: Failed to get workflow object: " + aWfHist.getErrorMessage());
+        aa.print("function sendDocUploadEmailToReviewer - End");
+        return false;
+    }	
+			
+	for (i in aTaskHist) {
+	  	aTask = aTaskHist[i]; 
+	  	var aTaskStatus = aTask.getDisposition();
+	  	aa.print("**Status: "+aTaskStatus);
+				   	
+		if(aTaskStatus=="Revisions Required"){  
+			//get wf task updated by user
+			var wfUpdateStaff = aTask.getTaskItem().getSysUser();
+			var userObj = aa.person.getUser(wfUpdateStaff.firstName, "", wfUpdateStaff.lastName).getOutput();
+			if (userObj){
+				var wfUserEmail = userObj.getEmail();
+				aa.print("**WF Staff Email: "+wfUserEmail);
+				
+				params = aa.util.newHashtable();
+				reportFile = null;
+				capIDString = recAltId;
+				capName = null;
+				capStatus = null;
+				fileDate = null;
+				balanceDue = null;
+					
+				getRecordParams4Notification(params); 	
+				sendNotification("noreply@cityoflancasterca.org",wfUserEmail,"","PERMITS_DOC_UPLOAD_NOTIFICATION", params,reportFile);
+			}	
+				
+		}
+	}
+	aa.print("function sendDocUploadEmailToReviewer - End");
+}
+
+
 
 function createRefContactsFromCapContactsAndLink_SLS(pCapId, contactTypeArray, ignoreAttributeArray, replaceCapContact, overwriteRefContact, refContactExists)
 	{
